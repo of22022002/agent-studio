@@ -38,7 +38,7 @@ class N2LModel(BaseModel):
 # 最终的请求体模型
 class N2LRequestBody(BaseModel):
     query: str
-    model: Optional[N2LModel] = None
+    model: N2LModel
     resource: Optional[N2LResource] = None
     conversationId: Optional[str] = None
 

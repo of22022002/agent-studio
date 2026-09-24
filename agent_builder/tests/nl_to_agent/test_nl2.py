@@ -81,10 +81,19 @@ class TestN2LRequestBody:
     """N2LRequestBody 模型测试"""
 
     @staticmethod
+    def test_required_model_missing_raises():
+        """缺少必填 model 字段时抛出 ValidationError"""
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            N2LRequestBody(query="test")
+
+    @staticmethod
     def test_default_none_for_optional_fields():
         """可选字段默认为 None"""
-        body = N2LRequestBody(query="test")
-        assert body.model is None
+        from agent_builder.nl_to_agent.nl2 import N2LModel
+
+        body = N2LRequestBody(query="test", model=N2LModel(modelName="model1"))
         assert body.resource is None
         assert body.conversationId is None
 

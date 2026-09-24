@@ -2657,6 +2657,11 @@ public enum StudioError {
     MCP_JSON_CONVERSION_ERROR(ACCEPTED, COMPONENT, "1114"),
 
     /**
+     * MCP服务类型无效
+     */
+    MCP_SERVER_TYPE_INVALID(BAD_REQUEST, COMPONENT, "1115"),
+
+    /**
      * 插件中文名已存在
      */
     PLUGIN_CN_NAME_ALREADY_EXIST(BAD_REQUEST, COMPONENT, "1117"),

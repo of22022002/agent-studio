@@ -318,4 +318,37 @@ class JiuwenServiceProxyControllerTest {
             verify(emitterMock, never()).complete();
         }
     }
+
+    /**
+     * 用例描述：上游 Flux 抛出 AgentStudioException（如上游 404 映射后的 RESOURCE_NOT_EXISTS）时，
+     * wrapToSse 应透传其具体错误码，而非统一覆盖为 JIU_WEN_SERVICE_EXCEPTION
+     * 预制条件：mock SseEmitter 构造，jiuwenRuntimeI18nService.createRuntimeErrorEvent 返回原参数
+     * 输入参数：Flux.error(new AgentStudioException(StudioError.RESOURCE_NOT_EXISTS))
+     * 预期结果：error 帧 code=RESOURCE_NOT_EXISTS.getCode()；completeWithError 参数 errorCode=RESOURCE_NOT_EXISTS
+     *
+     * @throws Exception 反射调用可能抛出的异常
+     */
+    @Test
+    void testWrapToSseShouldPassthroughAgentStudioExceptionErrorCode() throws Exception {
+        try (MockedConstruction<SseEmitter> mocked = mockConstruction(SseEmitter.class)) {
+            invokeWrapToSse(Flux.error(new AgentStudioException(StudioError.RESOURCE_NOT_EXISTS)));
+            SseEmitter emitterMock = mocked.constructed().get(0);
+
+            ArgumentCaptor<Set> sendCaptor = ArgumentCaptor.forClass(Set.class);
+            verify(emitterMock).send(sendCaptor.capture());
+            Map<String, Object> errorEvent = findMapEvent(sendCaptor.getValue());
+            assertEquals("error", errorEvent.get("event"), "事件类型应为 error");
+            Map<String, Object> errorData = (Map<String, Object>) errorEvent.get("data");
+            assertEquals(StudioError.RESOURCE_NOT_EXISTS.getCode(), errorData.get("code"),
+                "error 帧应透传 AgentStudioException 的具体错误码");
+            assertEquals("", errorData.get("message"), "error 帧的 message 应为空字符串，不暴露上游异常信息");
+
+            ArgumentCaptor<Throwable> completeCaptor = ArgumentCaptor.forClass(Throwable.class);
+            verify(emitterMock).completeWithError(completeCaptor.capture());
+            assertTrue(completeCaptor.getValue() instanceof AgentStudioException);
+            assertEquals(StudioError.RESOURCE_NOT_EXISTS,
+                ((AgentStudioException) completeCaptor.getValue()).getErrorCode());
+            verify(emitterMock, never()).complete();
+        }
+    }
 }

@@ -209,17 +209,23 @@ public class JiuwenServiceProxyController {
         }, error -> {
             log.error("JiuwenServiceProxyController error to receive sse event:", error);
             try {
+                // 透传上游映射后的具体错误码（如 404 资源不存在），仅未知异常兜底 1058
+                StudioError errorCode = StudioError.JIU_WEN_SERVICE_EXCEPTION;
+                if (error instanceof AgentStudioException) {
+                    errorCode = ((AgentStudioException) error).getErrorCode();
+                }
                 Map<String, Object> errorEvent = new HashMap<>();
                 errorEvent.put("event", "error");
                 Map<String, Object> errorData = new HashMap<>();
-                errorData.put("code", StudioError.JIU_WEN_SERVICE_EXCEPTION.getCode());
+                errorData.put("code", errorCode.getCode());
                 errorData.put("message", "");
                 errorEvent.put("data", errorData);
                 sseEmitter.send(SseEmitter.event().data(parseEventMsg(errorEvent, language)).build());
             } catch (IOException e) {
                 log.error("JiuwenServiceProxyController error to send error sse event:", e);
             }
-            sseEmitter.completeWithError(new AgentStudioException(StudioError.JIU_WEN_SERVICE_EXCEPTION));
+            sseEmitter.completeWithError(error instanceof AgentStudioException ? error
+                : new AgentStudioException(StudioError.JIU_WEN_SERVICE_EXCEPTION));
         }, sseEmitter::complete);
 
         return sseEmitter;

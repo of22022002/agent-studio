@@ -2,6 +2,8 @@
 # Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 """agent_builder FastAPI router — n2l chat + health (moved out of agent_runtime)."""
 
+from typing import Literal
+
 from fastapi import APIRouter, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse, JSONResponse
 
@@ -50,7 +52,7 @@ async def health():
 )
 async def chat_n2l(
     project_id: str,
-    agent_type: str,
+    agent_type: Literal["agents", "workflows"],
     cid: str,
     body: N2LRequestBody,
     request: Request,
