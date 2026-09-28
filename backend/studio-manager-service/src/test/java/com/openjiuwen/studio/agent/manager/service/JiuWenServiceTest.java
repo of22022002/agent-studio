@@ -292,13 +292,13 @@ class JiuWenServiceTest {
     }
 
     /**
-     * 用例描述：上游 401（鉴权失败）
+     * 用例描述：上游 401（鉴权失败/未认证）
      * 预制条件：WireMock stub 返回 401
      * 输入参数：generatorAgentOrWorkflow("token", p1, agents, c1, ws1, body)
-     * 预期结果：映射为 INTERFACE_FORBIDDEN_ACCESS（403/02201089），不误报为参数校验错误
+     * 预期结果：映射为 AUTHENTICATION_ERROR（401/02001108），区分未认证与无权限
      */
     @Test
-    void testGeneratorAgentOrWorkflow_401_MapsToForbidden() {
+    void testGeneratorAgentOrWorkflow_401_MapsToAuthenticationError() {
         builderMock.resetAll();
         builderMock.stubFor(post(urlPathTemplate("/v1/{pid}/{agentType}/generator/conversations/{cid}/chat"))
             .willReturn(aResponse().withStatus(401)
@@ -310,22 +310,44 @@ class JiuWenServiceTest {
             new HashMap<>());
         AgentStudioException ex = Assertions.assertThrows(AgentStudioException.class,
             () -> flux.collectList().block());
-        Assertions.assertEquals(StudioError.INTERFACE_FORBIDDEN_ACCESS, ex.getErrorCode());
+        Assertions.assertEquals(StudioError.AUTHENTICATION_ERROR, ex.getErrorCode());
     }
 
     /**
-     * 用例描述：上游 400（builder 参数校验失败等 4xx 场景，非 404/403/401）
-     * 预制条件：WireMock stub 返回 400
+     * 用例描述：上游 429（限流）
+     * 预制条件：WireMock stub 返回 429
      * 输入参数：generatorAgentOrWorkflow("token", p1, agents, c1, ws1, body)
-     * 预期结果：映射为 METHOD_ARGUMENT_NOT_VALID（400/02001003），而非统一压成 500
+     * 预期结果：映射为 CALL_LIMIT_ERROR（400/02001072），保留限流语义
      */
     @Test
-    void testGeneratorAgentOrWorkflow_400_MapsToBadRequest() {
+    void testGeneratorAgentOrWorkflow_429_MapsToCallLimitError() {
         builderMock.resetAll();
         builderMock.stubFor(post(urlPathTemplate("/v1/{pid}/{agentType}/generator/conversations/{cid}/chat"))
-            .willReturn(aResponse().withStatus(400)
+            .willReturn(aResponse().withStatus(429)
                 .withHeader("Content-Type", "application/json")
-                .withBody("{\"detail\":\"Bad Request\"}")));
+                .withBody("{\"detail\":\"Too Many Requests\"}")));
+        useRealBuilderClient();
+
+        Flux<Map<String, Object>> flux = jiuWenService.generatorAgentOrWorkflow("token", PID, AGENT_TYPE, CID, WS,
+            new HashMap<>());
+        AgentStudioException ex = Assertions.assertThrows(AgentStudioException.class,
+            () -> flux.collectList().block());
+        Assertions.assertEquals(StudioError.CALL_LIMIT_ERROR, ex.getErrorCode());
+    }
+
+    /**
+     * 用例描述：上游 422（FastAPI Pydantic 参数校验失败）
+     * 预制条件：WireMock stub 返回 422
+     * 输入参数：generatorAgentOrWorkflow("token", p1, agents, c1, ws1, body)
+     * 预期结果：映射为 METHOD_ARGUMENT_NOT_VALID（400/02001003）
+     */
+    @Test
+    void testGeneratorAgentOrWorkflow_422_MapsToBadRequest() {
+        builderMock.resetAll();
+        builderMock.stubFor(post(urlPathTemplate("/v1/{pid}/{agentType}/generator/conversations/{cid}/chat"))
+            .willReturn(aResponse().withStatus(422)
+                .withHeader("Content-Type", "application/json")
+                .withBody("{\"detail\":\"Unprocessable Entity\"}")));
         useRealBuilderClient();
 
         Flux<Map<String, Object>> flux = jiuWenService.generatorAgentOrWorkflow("token", PID, AGENT_TYPE, CID, WS,

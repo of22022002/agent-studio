@@ -161,14 +161,20 @@ public class JiuWenService {
                     if (statusCode.value() == 404) {
                         return Mono.error(new AgentStudioException(StudioError.RESOURCE_NOT_EXISTS));
                     }
-                    if (statusCode.value() == 403 || statusCode.value() == 401) {
+                    if (statusCode.value() == 403) {
                         return Mono.error(new AgentStudioException(StudioError.INTERFACE_FORBIDDEN_ACCESS));
                     }
+                    if (statusCode.value() == 401) {
+                        return Mono.error(new AgentStudioException(StudioError.AUTHENTICATION_ERROR));
+                    }
                     if (statusCode.value() == 429) {
-                        return Mono.error(new AgentStudioException(StudioError.JIU_WEN_SERVICE_EXCEPTION));
+                        return Mono.error(new AgentStudioException(StudioError.CALL_LIMIT_ERROR));
+                    }
+                    if (statusCode.value() == 422) {
+                        return Mono.error(new AgentStudioException(StudioError.METHOD_ARGUMENT_NOT_VALID));
                     }
                     if (statusCode.is4xxClientError()) {
-                        return Mono.error(new AgentStudioException(StudioError.METHOD_ARGUMENT_NOT_VALID));
+                        return Mono.error(new AgentStudioException(StudioError.JIU_WEN_SERVICE_EXCEPTION));
                     }
                     return Mono.error(new AgentStudioException(StudioError.JIU_WEN_SERVICE_EXCEPTION));
                 }))
