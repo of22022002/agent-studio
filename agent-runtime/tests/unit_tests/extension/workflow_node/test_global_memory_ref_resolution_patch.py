@@ -124,7 +124,7 @@ def test_string_schema_memory_ref():
     _write_memory_inside_loop(sub_wf_session, "plain", "plain_value")
 
     node = NodeSession(wf_session, "node_s")
-    resolved = node.state().get_inputs(GLOBAL_REF)
+    resolved = node.state().get_inputs("${" + GLOBAL_REF_PREFIX + "plain}")
     assert resolved == "plain_value"
 
 
