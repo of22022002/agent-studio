@@ -616,6 +616,8 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
             ...paramCopy.value.content[0],
             ...willPush,
           };
+          // ref 来源类型跟随引用值，同步回行数据供数据类型列展示
+          param.type = (paramCopy.value.content[0] as IParamRef)?.type;
         }
 
         newMidRefs.push(willPush as IParamRef);

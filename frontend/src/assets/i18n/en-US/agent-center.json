@@ -509,6 +509,7 @@
   "icon-more": "More",
   "icon-close": "Close",
   "type": "Type",
+  "data_type": "Data Type",
   "value": "Value",
   "not_configured": "Not configured",
   "node_error": "Node error",
