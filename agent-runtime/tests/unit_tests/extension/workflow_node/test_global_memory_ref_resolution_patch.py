@@ -8,8 +8,6 @@
 - io_state 已有实际值时不覆盖（fill-when-missing）
 """
 
-import pytest
-
 from jiuwen.extension.patches.global_memory_ref_resolution_patch import (
     GLOBAL_REF_PREFIX,
     _patched_commit_state_get_inputs,
@@ -28,6 +26,7 @@ from openjiuwen.core.session.state.workflow_state import CommitState, InMemorySt
 def test_patch_hooked_on_commit_state():
     """补丁必须真正挂载到 CommitState.get_inputs（状态断言，不依赖 apply 返回值）。"""
     assert CommitState.get_inputs is _patched_commit_state_get_inputs
+
 
 GLOBAL_REF = "${" + GLOBAL_REF_PREFIX + "mem_counter}"
 
