@@ -787,8 +787,8 @@ public class McpServiceManager implements IMcpServiceManagerService {
         log.info("operation log {}:start to create mcp server", projectId);
         CommonUtil.validateTenantIdIsNotEmpty();
         // 白名单约束：type 仅允许 inner（平台预置）或 private（私有），杜绝脏数据孤儿
-        if (!Strings.CI.equals(serverDetail.getType(), "inner")
-            && !Strings.CI.equals(serverDetail.getType(), "private")) {
+        if (!"inner".equals(serverDetail.getType())
+            && !"private".equals(serverDetail.getType())) {
             throw new AgentStudioException(StudioError.MCP_SERVER_TYPE_INVALID);
         }
 

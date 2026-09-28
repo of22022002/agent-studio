@@ -326,6 +326,24 @@ class TestN2lJsonWapper:
         set_payload = mock_request_json.set.call_args[0][0]
         assert set_payload["conversationId"] == "conv1"
 
+    @patch("agent_builder.nl_to_agent.nl2.request_json")
+    @staticmethod
+    def test_extension_null_not_crash(self, mock_request_json):
+        """model.extension 显式为 null 时不抛 AttributeError"""
+        mock_request_json.get.return_value = {}
+        mock_request_json.set = MagicMock()
+        req_json = {
+            "model": {
+                "modelName": "test-model",
+                "extension": None,
+            }
+        }
+        result = _n2l_json_wapper(
+            "proj1", "agents", "conv1", req_json, TestN2lJsonWapper._make_mock_request()
+        )
+        assert result["modelInfo"]["headers"]["auth_id"] is None
+        assert result["modelInfo"]["headers"]["deployment_id"] == ""
+
 
 class TestErrorSseGenerator:
     """_error_sse_generator COM-03 五字段契约测试（P5-BLD-01）"""
