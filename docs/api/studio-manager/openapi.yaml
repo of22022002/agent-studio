@@ -20405,25 +20405,6 @@ paths:
                 type: object
                 additionalProperties:
                   type: string
-  /api/storage/download:
-    get:
-      tags:
-      - storage-download-controller
-      operationId: download
-      parameters:
-      - name: path
-        in: query
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                type: string
-                format: binary
   /v2/{project_id}/agent-manager/memory-repositories/{memory_repo_id}/memories/{memory_id}:
     delete:
       tags:

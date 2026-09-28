@@ -10,6 +10,7 @@ import com.openjiuwen.studio.agent.common.error.ErrorDescriptor;
 import com.openjiuwen.studio.agent.common.error.ErrorDefinition;
 import com.openjiuwen.studio.agent.common.exception.AgentStudioException;
 import com.openjiuwen.studio.agent.foundation.base.exception.AgentBaseException;
+import com.openjiuwen.studio.agent.foundation.base.exception.ErrorCode;
 
 import feign.FeignException;
 
@@ -106,12 +107,25 @@ public class ManagerErrorDescriptorFactory {
         );
     }
 
-    /** AgentBaseException → 安全兜底码（foundation 旧模型映射为 UNEXPECTED_ERROR）。 */
+    /**
+     * AgentBaseException → 按 foundation ErrorCode 的原始 HTTP 状态码映射，
+     * 不再一律返回 500。cause 保留异常栈。
+     */
     public ErrorDescriptor fromAgentBaseException(AgentBaseException ex) {
-        ErrorDefinition defn = catalog.unexpectedError();
+        ErrorCode foundationErrorCode = ex.getErrorCode();
+        if (foundationErrorCode == null) {
+            ErrorDefinition defn = catalog.unexpectedError();
+            return new ErrorDescriptor(
+                defn.getErrorCode(), defn.getHttpStatus(),
+                defn.getMessageKey(), defn.getReasonKey(), defn.getSuggestionKey(),
+                currentRequestId(), null, null, null, ex
+            );
+        }
+        String code = foundationErrorCode.getCode();
+        int httpStatus = foundationErrorCode.getHttpCode();
         return new ErrorDescriptor(
-            defn.getErrorCode(), defn.getHttpStatus(),
-            defn.getMessageKey(), defn.getReasonKey(), defn.getSuggestionKey(),
+            code, httpStatus,
+            code, code + ".reason", code + ".suggestion",
             currentRequestId(), null, null, null, ex
         );
     }

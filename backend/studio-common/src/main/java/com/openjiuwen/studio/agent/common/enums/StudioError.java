@@ -900,7 +900,7 @@ public enum StudioError {
     /**
      * 应用发布渠道不存在
      */
-    APPLICATION_PUBLISH_CHANNEL_NOT_EXIST(BAD_REQUEST, AGENT, "1043"),
+    APPLICATION_PUBLISH_CHANNEL_NOT_EXIST(NOT_FOUND, AGENT, "1043"),
 
     /**
      * 缺少输入参数
@@ -1124,7 +1124,7 @@ public enum StudioError {
     /**
      * 该租户没有发布权限
      */
-    WORKFLOW_TENANT_NOT_PERMISSION(INTERNAL_SERVER_ERROR, WORKFLOW, "1032"),
+    WORKFLOW_TENANT_NOT_PERMISSION(FORBIDDEN, WORKFLOW, "1032"),
 
     /**
      * IR conversion ERROR, output reference type invalid
@@ -1641,7 +1641,7 @@ public enum StudioError {
     /**
      * 导入意图包失败
      */
-    INTENT_IMPORT_FILE_ERROR(INTERNAL_SERVER_ERROR, CONFIG, "1002"),
+    INTENT_IMPORT_FILE_ERROR(BAD_REQUEST, CONFIG, "1002"),
 
     /**
      * 导入意图包，Exceeded file size limit
@@ -2514,7 +2514,7 @@ public enum StudioError {
     /**
      * 插件不存在或无权限使用
      */
-    TOOLS_NOT_EXIST_OR_NO_PERMISSION(INTERNAL_SERVER_ERROR, COMPONENT, "1086"),
+    TOOLS_NOT_EXIST_OR_NO_PERMISSION(NOT_FOUND, COMPONENT, "1086"),
 
     /**
      * 非法API调用

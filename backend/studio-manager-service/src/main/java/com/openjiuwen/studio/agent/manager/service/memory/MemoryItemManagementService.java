@@ -23,6 +23,10 @@ import com.openjiuwen.studio.agent.manager.utils.OkHttpUtils;
 import com.openjiuwen.studio.agent.manager.entity.plugin.RequestResult;
 import com.openjiuwen.studio.common.service.service.EncryptionAdapter;
 
+import com.openjiuwen.studio.agent.manager.exception.downstream.DownstreamFailureException;
+
+import feign.FeignException;
+
 import org.apache.commons.lang3.StringUtils;
 
 import org.slf4j.Logger;
@@ -112,6 +116,8 @@ public class MemoryItemManagementService implements IMemoryItemManagementService
             }
 
             return result;
+        } catch (AgentStudioException | FeignException | DownstreamFailureException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Failed to list memories from runtime for repo {}: {}", memoryRepoId, e.getMessage(), e);
             throw new AgentStudioException(StudioError.CSS_UNI_SEARCH_SERVICE_EXCEPTION,
@@ -166,8 +172,9 @@ public class MemoryItemManagementService implements IMemoryItemManagementService
                         "Failed to delete memories, partial errors: " + errors);
                 }
             }
-        } catch (AgentStudioException e) {
+        } catch (AgentStudioException | FeignException | DownstreamFailureException e) {
             // partial 时已在上方抛出语义化异常，直接透传，避免被下方 catch(Exception) 二次包装
+            // FeignException / DownstreamFailureException 为下游依赖失败，透传后由全局异常处理器映射为 502
             throw e;
         } catch (Exception e) {
             log.error("Failed to batch delete memories from runtime for repo {}: {}",
@@ -245,6 +252,8 @@ public class MemoryItemManagementService implements IMemoryItemManagementService
             }
 
             return result;
+        } catch (AgentStudioException | FeignException | DownstreamFailureException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Failed to search memories from runtime for repo {}: {}", memoryRepoId, e.getMessage(), e);
             throw new AgentStudioException(StudioError.CSS_UNI_SEARCH_SERVICE_EXCEPTION,
@@ -325,7 +334,7 @@ public class MemoryItemManagementService implements IMemoryItemManagementService
                 throw new AgentStudioException(StudioError.CSS_UNI_SEARCH_SERVICE_EXCEPTION,
                     "Failed to clear memories: " + (result == null ? "empty response" : status));
             }
-        } catch (AgentStudioException e) {
+        } catch (AgentStudioException | FeignException | DownstreamFailureException e) {
             throw e;
         } catch (Exception e) {
             log.error("Failed to clear memories from runtime for repo {}: {}", memoryRepoId, e.getMessage(), e);

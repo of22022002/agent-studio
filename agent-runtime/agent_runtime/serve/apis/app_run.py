@@ -38,6 +38,7 @@ from agent_runtime.common.env_variables_loader import (
     load_default_environment_id,
     _SECRET_ENV_KEYS_KEY,
 )
+from agent_runtime.common.exception.errors import AgentBuilderError
 from agent_runtime.event_handler.event_handler import EventHandler
 from agent_runtime.event_handler.base.conversation import (
     ConversationManager,
@@ -816,6 +817,8 @@ async def _execute_agent_run(
     # 从IR中确定handler_type
     try:
         handler_type = await _resolve_handler_type(ir_path)
+    except AgentBuilderError:
+        raise
     except Exception as e:
         workflow_logger.error(f"Failed to resolve handler type from IR: {ir_path}, error: {e}")
         raise JiuWenBaseException(
