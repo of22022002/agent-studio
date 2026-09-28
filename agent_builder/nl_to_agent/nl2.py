@@ -28,7 +28,7 @@ class N2LResource(BaseModel):
 
 
 class N2LModel(BaseModel):
-    modelName: Optional[str] = None
+    modelName: str
     modelExplicitName: Optional[str] = None
     extension: Optional[Dict[str, Any]] = None
     modelType: Optional[str] = None

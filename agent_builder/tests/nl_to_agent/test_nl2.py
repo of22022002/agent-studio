@@ -27,6 +27,10 @@ def _setup_nl2_mocks():
         manager_mock.StateManager = MagicMock
         sys.modules["jiuwen.serve.controllers.execution.manager"] = manager_mock
 
+    if "model_service" not in sys.modules:
+        ms_mock = types.ModuleType("model_service")
+        sys.modules["model_service"] = ms_mock
+
 
 _setup_nl2_mocks()
 
@@ -96,6 +100,16 @@ class TestN2LRequestBody:
         body = N2LRequestBody(query="test", model=N2LModel(modelName="model1"))
         assert body.resource is None
         assert body.conversationId is None
+
+    @staticmethod
+    def test_model_name_required_raises():
+        """modelName 为必填字段，缺失时抛出 ValidationError"""
+        from pydantic import ValidationError
+
+        from agent_builder.nl_to_agent.nl2 import N2LModel
+
+        with pytest.raises(ValidationError):
+            N2LModel()
 
     @staticmethod
     def test_assignment_works():

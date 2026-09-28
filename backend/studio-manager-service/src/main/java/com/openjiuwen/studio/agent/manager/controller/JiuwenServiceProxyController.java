@@ -96,7 +96,7 @@ public class JiuwenServiceProxyController {
     })
     @PostMapping("/v1/{project_id}/{agent_type}/generator/conversations/{cid}/chat")
     public Object generatorAgentOrWorkflow(@PathVariable("project_id") String projectId,
-        @PathVariable("agent_type") String agentType,
+        @Pattern(regexp = "agents|workflows") @PathVariable("agent_type") String agentType,
         @Pattern(regexp = ConversationIdValidator.N2L_CONVERSATION_REGEXP) @Size(min = 1, max = 128)
         @PathVariable("cid") String cid,
         @RequestParam("workspace_id") String workspaceId, @RequestBody @Valid NLChatReq body) {
@@ -218,6 +218,7 @@ public class JiuwenServiceProxyController {
                 errorEvent.put("event", "error");
                 Map<String, Object> errorData = new HashMap<>();
                 errorData.put("code", errorCode.getCode());
+                errorData.put("error_code", errorCode.getFullCode());
                 errorData.put("message", "");
                 errorEvent.put("data", errorData);
                 sseEmitter.send(SseEmitter.event().data(parseEventMsg(errorEvent, language)).build());

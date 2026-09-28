@@ -164,6 +164,9 @@ public class JiuWenService {
                     if (statusCode.value() == 403) {
                         return Mono.error(new AgentStudioException(StudioError.INTERFACE_FORBIDDEN_ACCESS));
                     }
+                    if (statusCode.is4xxClientError()) {
+                        return Mono.error(new AgentStudioException(StudioError.METHOD_ARGUMENT_NOT_VALID));
+                    }
                     return Mono.error(new AgentStudioException(StudioError.JIU_WEN_SERVICE_EXCEPTION));
                 }))
             .bodyToFlux(String.class)

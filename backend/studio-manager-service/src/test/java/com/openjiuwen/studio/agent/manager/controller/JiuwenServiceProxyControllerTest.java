@@ -171,6 +171,8 @@ class JiuwenServiceProxyControllerTest {
             Map<String, Object> errorData = (Map<String, Object>) errorEvent.get("data");
             assertEquals(StudioError.JIU_WEN_SERVICE_EXCEPTION.getCode(), errorData.get("code"),
                 "error 帧的 code 应为 JIU_WEN_SERVICE_EXCEPTION 错误码");
+            assertEquals(StudioError.JIU_WEN_SERVICE_EXCEPTION.getFullCode(), errorData.get("error_code"),
+                "error 帧的 error_code 应为含模块前缀的全码");
             assertEquals("", errorData.get("message"), "error 帧的 message 应为空字符串，不暴露上游异常信息");
 
             ArgumentCaptor<Map> i18nCaptor = ArgumentCaptor.forClass(Map.class);
@@ -341,6 +343,8 @@ class JiuwenServiceProxyControllerTest {
             Map<String, Object> errorData = (Map<String, Object>) errorEvent.get("data");
             assertEquals(StudioError.RESOURCE_NOT_EXISTS.getCode(), errorData.get("code"),
                 "error 帧应透传 AgentStudioException 的具体错误码");
+            assertEquals(StudioError.RESOURCE_NOT_EXISTS.getFullCode(), errorData.get("error_code"),
+                "error 帧的 error_code 应为含模块前缀的全码");
             assertEquals("", errorData.get("message"), "error 帧的 message 应为空字符串，不暴露上游异常信息");
 
             ArgumentCaptor<Throwable> completeCaptor = ArgumentCaptor.forClass(Throwable.class);

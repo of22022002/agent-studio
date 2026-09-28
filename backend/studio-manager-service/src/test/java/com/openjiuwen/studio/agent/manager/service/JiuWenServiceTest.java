@@ -292,6 +292,28 @@ class JiuWenServiceTest {
     }
 
     /**
+     * 用例描述：上游 400（builder 参数校验失败等 4xx 场景，非 404/403）
+     * 预制条件：WireMock stub 返回 400
+     * 输入参数：generatorAgentOrWorkflow("token", p1, agents, c1, ws1, body)
+     * 预期结果：映射为 METHOD_ARGUMENT_NOT_VALID（400/02001003），而非统一压成 500
+     */
+    @Test
+    void testGeneratorAgentOrWorkflow_400_MapsToBadRequest() {
+        builderMock.resetAll();
+        builderMock.stubFor(post(urlPathTemplate("/v1/{pid}/{agentType}/generator/conversations/{cid}/chat"))
+            .willReturn(aResponse().withStatus(400)
+                .withHeader("Content-Type", "application/json")
+                .withBody("{\"detail\":\"Bad Request\"}")));
+        useRealBuilderClient();
+
+        Flux<Map<String, Object>> flux = jiuWenService.generatorAgentOrWorkflow("token", PID, AGENT_TYPE, CID, WS,
+            new HashMap<>());
+        AgentStudioException ex = Assertions.assertThrows(AgentStudioException.class,
+            () -> flux.collectList().block());
+        Assertions.assertEquals(StudioError.METHOD_ARGUMENT_NOT_VALID, ex.getErrorCode());
+    }
+
+    /**
      * 用例描述：上游 500 generic（builder 未捕获异常形态 {"error":{"code":"internal_error",...}}）
      * 预制条件：WireMock stub 返回 500 携带 internal_error 对象
      * 输入参数：generatorAgentOrWorkflow("token", p1, agents, c1, ws1, body)
