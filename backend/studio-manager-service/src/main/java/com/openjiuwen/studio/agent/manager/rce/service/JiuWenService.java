@@ -156,25 +156,13 @@ public class JiuWenService {
             .onStatus(status -> !status.is2xxSuccessful(),
                 response -> response.bodyToMono(String.class).flatMap(errorBody -> {
                     log.error("generatorAgentOrWorkflow error: status={}, body={}", response.statusCode(), errorBody);
-                    // 按上游状态码映射，避免统一压成 500 导致「资源不存在」不可辨
+                    // 按上游状态码映射：4xx 保持客户端错误语义，不压成 5xx
                     HttpStatusCode statusCode = response.statusCode();
                     if (statusCode.value() == 404) {
                         return Mono.error(new AgentStudioException(StudioError.RESOURCE_NOT_EXISTS));
                     }
-                    if (statusCode.value() == 403) {
-                        return Mono.error(new AgentStudioException(StudioError.INTERFACE_FORBIDDEN_ACCESS));
-                    }
-                    if (statusCode.value() == 401) {
-                        return Mono.error(new AgentStudioException(StudioError.AUTHENTICATION_ERROR));
-                    }
-                    if (statusCode.value() == 429) {
-                        return Mono.error(new AgentStudioException(StudioError.CALL_LIMIT_ERROR));
-                    }
-                    if (statusCode.value() == 422) {
-                        return Mono.error(new AgentStudioException(StudioError.METHOD_ARGUMENT_NOT_VALID));
-                    }
                     if (statusCode.is4xxClientError()) {
-                        return Mono.error(new AgentStudioException(StudioError.JIU_WEN_SERVICE_EXCEPTION));
+                        return Mono.error(new AgentStudioException(StudioError.METHOD_ARGUMENT_NOT_VALID));
                     }
                     return Mono.error(new AgentStudioException(StudioError.JIU_WEN_SERVICE_EXCEPTION));
                 }))
