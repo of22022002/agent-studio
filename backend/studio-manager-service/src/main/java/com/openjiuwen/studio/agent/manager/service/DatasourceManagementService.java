@@ -174,9 +174,10 @@ public class DatasourceManagementService implements IDatasourceManagementService
                                             int page, int pageSize,
                                             String name, String type, String status) {
         int offset = (page - 1) * pageSize;
+        String escapedName = escapeLikeKeyword(name);
         List<DatasourceEntity> entities = datasourceMapper.listDatasource(
-            projectId, workspaceId, name, type, status, offset, pageSize);
-        int total = datasourceMapper.countDatasource(projectId, workspaceId, name, type, status);
+            projectId, workspaceId, escapedName, type, status, offset, pageSize);
+        int total = datasourceMapper.countDatasource(projectId, workspaceId, escapedName, type, status);
 
         DatasourceListRsp rsp = new DatasourceListRsp();
         rsp.setTotal(total);
@@ -184,6 +185,15 @@ public class DatasourceManagementService implements IDatasourceManagementService
             .map(this::toInfoRsp)
             .collect(Collectors.toList()));
         return rsp;
+    }
+
+    private String escapeLikeKeyword(String keyword) {
+        if (StringUtils.isBlank(keyword)) {
+            return keyword;
+        }
+        return keyword.replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_");
     }
 
     public DatasourceInfoRsp retrieveDatasource(String projectId, String workspaceId, String datasourceId) {
