@@ -155,7 +155,7 @@ public class JiuWenService {
             .retrieve()
             .onStatus(status -> !status.is2xxSuccessful(),
                 response -> response.bodyToMono(String.class).flatMap(errorBody -> {
-                    log.error("generatorAgentOrWorkflow error: status={}, body={}", response.statusCode(), errorBody);
+                    log.error("generatorAgentOrWorkflow error");
                     // 按上游状态码映射：4xx 保持客户端错误语义，不压成 5xx
                     HttpStatusCode statusCode = response.statusCode();
                     if (statusCode.value() == 404) {
