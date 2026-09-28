@@ -96,7 +96,7 @@ public class JiuwenServiceProxyController {
     })
     @PostMapping("/v1/{project_id}/{agent_type}/generator/conversations/{cid}/chat")
     public Object generatorAgentOrWorkflow(@PathVariable("project_id") String projectId,
-        @PathVariable("agent_type") String agentType,
+        @Pattern(regexp = "agents|workflows") @PathVariable("agent_type") String agentType,
         @Pattern(regexp = ConversationIdValidator.N2L_CONVERSATION_REGEXP) @Size(min = 1, max = 128)
         @PathVariable("cid") String cid,
         @RequestParam("workspace_id") String workspaceId, @RequestBody @Valid NLChatReq body) {
@@ -209,17 +209,24 @@ public class JiuwenServiceProxyController {
         }, error -> {
             log.error("JiuwenServiceProxyController error to receive sse event:", error);
             try {
+                // 透传上游映射后的具体错误码（如 404 资源不存在），仅未知异常兜底 1058
+                StudioError errorCode = StudioError.JIU_WEN_SERVICE_EXCEPTION;
+                if (error instanceof AgentStudioException) {
+                    errorCode = ((AgentStudioException) error).getErrorCode();
+                }
                 Map<String, Object> errorEvent = new HashMap<>();
                 errorEvent.put("event", "error");
                 Map<String, Object> errorData = new HashMap<>();
-                errorData.put("code", StudioError.JIU_WEN_SERVICE_EXCEPTION.getCode());
+                errorData.put("code", errorCode.getCode());
+                errorData.put("error_code", errorCode.getFullCode());
                 errorData.put("message", "");
                 errorEvent.put("data", errorData);
                 sseEmitter.send(SseEmitter.event().data(parseEventMsg(errorEvent, language)).build());
             } catch (IOException e) {
                 log.error("JiuwenServiceProxyController error to send error sse event:", e);
             }
-            sseEmitter.completeWithError(new AgentStudioException(StudioError.JIU_WEN_SERVICE_EXCEPTION));
+            sseEmitter.completeWithError(error instanceof AgentStudioException ? error
+                : new AgentStudioException(StudioError.JIU_WEN_SERVICE_EXCEPTION));
         }, sseEmitter::complete);
 
         return sseEmitter;

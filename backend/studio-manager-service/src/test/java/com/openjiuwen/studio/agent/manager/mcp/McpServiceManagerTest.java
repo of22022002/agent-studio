@@ -772,8 +772,8 @@ class McpServiceManagerTest {
     }
 
     /**
-     * 用例描述：查询MCP服务详情时服务存在，应正常返回详情DTO
-     * 预制条件：serverDao.selectById 返回非空实体（type=public 跳过权限校验），mcpUtil 转换返回DTO
+     * 用例描述：查询MCP服务详情时服务存在且为inner类型，应正常返回详情DTO
+     * 预制条件：serverDao.selectById 返回非空实体（type=inner 白名单放行，全租户可见），mcpUtil 转换返回DTO
      * 输入参数：projectId=p1, workspaceId=ws1, serverId=server-1
      * 预期结果：返回非空 McpServerDetailInfoDto，且 score 和 scoreAvg 被正确设置
      */
@@ -781,7 +781,7 @@ class McpServiceManagerTest {
     void testQueryServerDetail_Success() {
         McpServerEntity serverEntity = new McpServerEntity();
         serverEntity.setId("server-1");
-        serverEntity.setType("public");
+        serverEntity.setType("inner");
 
         McpServerDetailInfoDto detailDto = new McpServerDetailInfoDto();
         detailDto.setId("server-1");
@@ -825,6 +825,25 @@ class McpServiceManagerTest {
 
         Assertions.assertNotNull(result);
         Assertions.assertEquals("server-private", result.getId());
+    }
+
+    /**
+     * 用例描述：查询MCP服务详情时服务类型非 inner/private（脏数据孤儿），白名单拒绝返回404
+     * 预制条件：serverDao.selectById 返回非空实体（type=public 非法类型）
+     * 输入参数：projectId=p1, workspaceId=ws1, serverId=server-invalid
+     * 预期结果：抛出 MCP_SERVICE_NOT_EXIST（404），避免黑名单放行导致的越权读
+     */
+    @Test
+    void testQueryServerDetail_InvalidType_Throws404() {
+        McpServerEntity serverEntity = new McpServerEntity();
+        serverEntity.setId("server-invalid");
+        serverEntity.setType("public");
+
+        when(serverDao.selectById("server-invalid")).thenReturn(serverEntity);
+
+        AgentStudioException ex = Assertions.assertThrows(AgentStudioException.class,
+            () -> mcpServiceManager.queryServerDetail("p1", "ws1", "server-invalid"));
+        Assertions.assertEquals(StudioError.MCP_SERVICE_NOT_EXIST, ex.getErrorCode());
     }
 
 }

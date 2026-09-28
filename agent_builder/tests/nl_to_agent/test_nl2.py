@@ -27,6 +27,10 @@ def _setup_nl2_mocks():
         manager_mock.StateManager = MagicMock
         sys.modules["jiuwen.serve.controllers.execution.manager"] = manager_mock
 
+    if "model_service" not in sys.modules:
+        ms_mock = types.ModuleType("model_service")
+        sys.modules["model_service"] = ms_mock
+
 
 _setup_nl2_mocks()
 
@@ -81,12 +85,31 @@ class TestN2LRequestBody:
     """N2LRequestBody 模型测试"""
 
     @staticmethod
+    def test_required_model_missing_raises():
+        """缺少必填 model 字段时抛出 ValidationError"""
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            N2LRequestBody(query="test")
+
+    @staticmethod
     def test_default_none_for_optional_fields():
         """可选字段默认为 None"""
-        body = N2LRequestBody(query="test")
-        assert body.model is None
+        from agent_builder.nl_to_agent.nl2 import N2LModel
+
+        body = N2LRequestBody(query="test", model=N2LModel(modelName="model1"))
         assert body.resource is None
         assert body.conversationId is None
+
+    @staticmethod
+    def test_model_name_required_raises():
+        """modelName 为必填字段，缺失时抛出 ValidationError"""
+        from pydantic import ValidationError
+
+        from agent_builder.nl_to_agent.nl2 import N2LModel
+
+        with pytest.raises(ValidationError):
+            N2LModel()
 
     @staticmethod
     def test_assignment_works():
@@ -302,6 +325,24 @@ class TestN2lJsonWapper:
         mock_request_json.set.assert_called_once()
         set_payload = mock_request_json.set.call_args[0][0]
         assert set_payload["conversationId"] == "conv1"
+
+    @patch("agent_builder.nl_to_agent.nl2.request_json")
+    @staticmethod
+    def test_extension_null_not_crash(self, mock_request_json):
+        """model.extension 显式为 null 时不抛 AttributeError"""
+        mock_request_json.get.return_value = {}
+        mock_request_json.set = MagicMock()
+        req_json = {
+            "model": {
+                "modelName": "test-model",
+                "extension": None,
+            }
+        }
+        result = _n2l_json_wapper(
+            "proj1", "agents", "conv1", req_json, TestN2lJsonWapper._make_mock_request()
+        )
+        assert result["modelInfo"]["headers"]["auth_id"] is None
+        assert result["modelInfo"]["headers"]["deployment_id"] == ""
 
 
 class TestErrorSseGenerator:

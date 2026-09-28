@@ -28,7 +28,7 @@ class N2LResource(BaseModel):
 
 
 class N2LModel(BaseModel):
-    modelName: Optional[str] = None
+    modelName: str
     modelExplicitName: Optional[str] = None
     extension: Optional[Dict[str, Any]] = None
     modelType: Optional[str] = None
@@ -38,7 +38,7 @@ class N2LModel(BaseModel):
 # 最终的请求体模型
 class N2LRequestBody(BaseModel):
     query: str
-    model: Optional[N2LModel] = None
+    model: N2LModel
     resource: Optional[N2LResource] = None
     conversationId: Optional[str] = None
 
@@ -80,8 +80,8 @@ def _n2l_json_wapper(
         "workspace_id": query_params.get("workspace_id", ""),
         "project_id": project_id,
         "x_auth_token": headers.get("x-auth-token"),
-        "auth_id": model.get("extension", {}).get("authId"),
-        "deployment_id": model.get("extension", {}).get("deploymentId", ""),
+        "auth_id": (model.get("extension") or {}).get("authId"),
+        "deployment_id": (model.get("extension") or {}).get("deploymentId", ""),
         "model_explicit_name": model.get("modelExplicitName", ""),
         "nl2_model_type": model.get("modelType", ""),
         "model_interface_protocol": model.get("modelInterfaceProtocol", ""),

@@ -992,44 +992,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorRsp"
   /v2/{project_id}/agent-builder/prompt:
-    get:
-      tags:
-      - prompt-api-api-controller
-      summary: 查询提示词详情
-      description: Get CustomPromptApi Actions
-      operationId: queryCustomPromptApiActions
-      parameters:
-      - name: project_id
-        in: path
-        description: 项目ID
-        required: true
-        schema:
-          type: string
-      - name: workspace_id
-        in: query
-        description: 工作空间ID
-        required: true
-        schema:
-          type: string
-          description: 工作空间ID
-          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-        example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-      - name: name
-        in: query
-        description: 名称
-        required: false
-        schema:
-          type: string
-          description: 名称
-          example: 示例名称
-        example: 示例名称
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PePromptTemplateNewVo"
     put:
       tags:
       - prompt-api-api-controller
@@ -4428,39 +4390,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PromptBaseResp"
-  /v2/{project_id}/prompt/tasks/{task_id}/start:
-    post:
-      tags:
-      - prompt-engineer-api-controller
-      summary: 启动提示词优化任务
-      description: 将任务从草稿(0)或等待执行(1)状态启动为执行中(2)
-      operationId: startPromptTask
-      parameters:
-      - name: project_id
-        in: path
-        description: 项目ID
-        required: true
-        schema:
-          type: string
-      - name: task_id
-        in: path
-        description: 任务ID
-        required: true
-        schema:
-          type: string
-          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-      - name: workspace_id
-        in: query
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PromptBaseInfo"
   /v2/{project_id}/prompt/tasks/{task_id}/resume:
     post:
       tags:
@@ -5907,11 +5836,15 @@ paths:
         required: true
         schema:
           type: string
+          pattern: agents|workflows
       - name: cid
         in: path
         required: true
         schema:
           type: string
+          maxLength: 128
+          minLength: 1
+          pattern: "^[a-zA-Z0-9._:-]{1,128}$"
       - name: workspace_id
         in: query
         required: true
@@ -15457,7 +15390,7 @@ paths:
           type: string
           maxLength: 64
           minLength: 1
-          pattern: "^[a-zA-Z0-9_-]+$"
+          pattern: "^[a-zA-Z0-9_-]{1,64}$"
       - name: workflow_id
         in: path
         description: 工作流id
@@ -15466,7 +15399,7 @@ paths:
           type: string
           maxLength: 64
           minLength: 1
-          pattern: "^[a-zA-Z0-9_-]+$"
+          pattern: "^[a-zA-Z0-9_-]{1,64}$"
       - name: execution_id
         in: path
         description: 执行id
@@ -15475,7 +15408,7 @@ paths:
           type: string
           maxLength: 64
           minLength: 1
-          pattern: "^[a-zA-Z0-9_-]+$"
+          pattern: "^[a-zA-Z0-9_-]{1,64}$"
       - name: offset
         in: query
         required: false
@@ -15520,7 +15453,7 @@ paths:
           type: string
           maxLength: 64
           minLength: 1
-          pattern: "^[a-zA-Z0-9_-]+$"
+          pattern: "^[a-zA-Z0-9_-]{1,64}$"
       - name: workflow_id
         in: path
         description: 工作流id
@@ -15529,7 +15462,7 @@ paths:
           type: string
           maxLength: 64
           minLength: 1
-          pattern: "^[a-zA-Z0-9_-]+$"
+          pattern: "^[a-zA-Z0-9_-]{1,64}$"
       - name: offset
         in: query
         required: false
@@ -15586,7 +15519,7 @@ paths:
           type: string
           maxLength: 64
           minLength: 1
-          pattern: "^[a-zA-Z0-9_-]+$"
+          pattern: "^[a-zA-Z0-9_-]{1,64}$"
       - name: workflow_id
         in: path
         description: 工作流id
@@ -15595,7 +15528,7 @@ paths:
           type: string
           maxLength: 64
           minLength: 1
-          pattern: "^[a-zA-Z0-9_-]+$"
+          pattern: "^[a-zA-Z0-9_-]{1,64}$"
       - name: conversation_id
         in: path
         description: 会话id
@@ -15604,7 +15537,7 @@ paths:
           type: string
           maxLength: 64
           minLength: 1
-          pattern: "^[a-zA-Z0-9_-]+$"
+          pattern: "^[a-zA-Z0-9_-]{1,64}$"
       - name: offset
         in: query
         required: false
@@ -18569,7 +18502,8 @@ paths:
       tags:
       - agent-management-api-controller
       summary: 获取指定角色的权限列表
-      description: 根据角色名称返回该角色对应的权限列表。
+      description: "根据角色名称返回该角色对应的权限列表。响应 Map 的 key 为角色名(如 DEVELOPER)，另有特殊 key: creatorCheckPermissions(需\
+        创建人校验的 METHOD#URI 列表)、currentUserId(当前用户 userId)、currentUserName(当前用户 userName)。"
       operationId: getPermissionsByRole
       parameters:
       - name: project_id
@@ -19872,7 +19806,7 @@ paths:
           type: string
           maxLength: 64
           minLength: 0
-          pattern: "^[a-zA-Z0-9_-]+$"
+          pattern: "^[a-zA-Z0-9_-]{1,64}$"
       - name: agent_id
         in: path
         description: workflow/agent id
@@ -19881,7 +19815,7 @@ paths:
           type: string
           maxLength: 64
           minLength: 0
-          pattern: "^[a-zA-Z0-9_-]+$"
+          pattern: "^[a-zA-Z0-9_-]{1,64}$"
       - name: conversation_id
         in: path
         description: conversation_id
@@ -19890,7 +19824,7 @@ paths:
           type: string
           maxLength: 64
           minLength: 0
-          pattern: "^[a-zA-Z0-9_-]+$"
+          pattern: "^[a-zA-Z0-9_-]{1,64}$"
       - name: version_id
         in: query
         required: false
@@ -19930,7 +19864,7 @@ paths:
           type: string
           maxLength: 64
           minLength: 0
-          pattern: "^[a-zA-Z0-9_-]+$"
+          pattern: "^[a-zA-Z0-9_-]{1,64}$"
       - name: agent_id
         in: path
         description: workflow/agent id
@@ -19939,7 +19873,7 @@ paths:
           type: string
           maxLength: 64
           minLength: 0
-          pattern: "^[a-zA-Z0-9_-]+$"
+          pattern: "^[a-zA-Z0-9_-]{1,64}$"
       - name: conversation_id
         in: path
         description: conversation_id
@@ -19948,7 +19882,7 @@ paths:
           type: string
           maxLength: 64
           minLength: 0
-          pattern: "^[a-zA-Z0-9_-]+$"
+          pattern: "^[a-zA-Z0-9_-]{1,64}$"
       - name: version_id
         in: query
         description: 版本号
@@ -20471,6 +20405,25 @@ paths:
                 type: object
                 additionalProperties:
                   type: string
+  /api/storage/download:
+    get:
+      tags:
+      - storage-download-controller
+      operationId: download
+      parameters:
+      - name: path
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
   /v2/{project_id}/agent-manager/memory-repositories/{memory_repo_id}/memories/{memory_id}:
     delete:
       tags:
@@ -21600,6 +21553,10 @@ components:
           example: []
           items:
             $ref: "#/components/schemas/ErrorDetail"
+        request_id:
+          type: string
+          description: 请求追踪ID
+          example: a1b2c3d4
     PePromptTemplateNewVo:
       type: object
       properties:
@@ -23759,12 +23716,12 @@ components:
         recall_threshold:
           type: number
           format: float
-          description: 语义检索召回阈值，取值范围 0~1，低于此阈值的结果将被过滤
+          description: 语义检索召回阈值，取值范围由环境变量 KNOWLEDGE_RECALL_THRESHOLD_MIN/MAX 配置，低于此阈值的结果将被过滤
           example: 0.5
         faq_threshold:
           type: number
           format: float
-          description: FAQ 检索匹配阈值，取值范围 0~1
+          description: FAQ 检索匹配阈值，取值范围由环境变量 KNOWLEDGE_RECALL_THRESHOLD_MIN/MAX 配置
           example: 0.9
         need_extras_faq_search:
           type: boolean
@@ -26232,8 +26189,12 @@ components:
           pattern: "(http|https)://[a-zA-Z0-9-.]+(:[0-9]+)?(/\\S*)?"
         type:
           type: string
-          description: 类型
-          example: sse
+          description: 类型：inner（平台预置）/ private（私有）
+          enum:
+          - inner
+          - private
+          example: inner
+          pattern: ^(inner|private)$
         deploy_type:
           type: string
           description: 部署类型
@@ -26248,6 +26209,8 @@ components:
           type: string
           description: 工具列表
           example: []
+      required:
+      - type
     McpServiceDeployReq:
       type: object
       properties:
