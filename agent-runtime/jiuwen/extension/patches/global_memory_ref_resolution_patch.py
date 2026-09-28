@@ -18,6 +18,9 @@ Global memory variable reference resolution (jiuwen-side patch, no openjiuwen co
 
 边界：
 - 仅影响 MEMORY_VARIABLE 前缀引用，其他引用行为零变化。
+- 旧格式 ${node_start.memory.xxx} 引用由 IR 转换层（ir_converter 的
+  _convert_global_variable_refs_in_ir）在加载期统一转换为本格式，本补丁不重复处理；
+  转换未覆盖的配置位置若仍残留旧格式引用，属转换覆盖面问题，另行跟踪。
 - global_state 也没有该值时维持原结果（None/引用串），交由既有保护逻辑处理。
 - TODO: openjiuwen 内核官方支持 global refs 解析后移除本补丁（需 >= 修复版本）。
 
@@ -92,8 +95,11 @@ def _resolve_memory_leaves(schema: Any, result: Any, global_state: Any) -> Any:
         if not isinstance(result, list):
             return result
         new_list: list | None = None
+        # 仅修正既有槽位：result 短于 schema 时不越界写入、不虚构结构
         for i, sub_schema in enumerate(schema):
-            sub_result = result[i] if i < len(result) else None
+            if i >= len(result):
+                break
+            sub_result = result[i]
             patched = _resolve_memory_leaves(sub_schema, sub_result, global_state)
             if patched is not sub_result:
                 if new_list is None:

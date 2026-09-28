@@ -155,3 +155,19 @@ def test_resolve_memory_leaves_mismatched_shapes():
     """schema 与 result 结构不一致时安全返回原 result。"""
     assert _resolve_memory_leaves({"a": 1}, "not-a-dict", None) == "not-a-dict"
     assert _resolve_memory_leaves(["x"], "not-a-list", None) == "not-a-list"
+
+
+def test_resolve_memory_leaves_result_shorter_than_schema():
+    """result 短于 schema 时仅在既有槽位内兜底，不越界、不虚构槽位。"""
+    wf_session, _ = _build_loop_scenario()
+    seed = NodeSession(wf_session, "node_seed")
+    seed.state().update_global({f"{GLOBAL_REF_PREFIX}v": "vv"})
+    seed.state().commit()
+    gs = wf_session.state()._global_state  # pylint: disable=protected-access
+
+    ref = "${" + GLOBAL_REF_PREFIX + "v}"
+    # 越界尾项为可命中引用 → 不得 IndexError，原样返回
+    assert _resolve_memory_leaves([ref], [], gs) == []
+    # 越界项之前存在命中项 → 既有槽位修正、越界槽位忽略（长度不变）
+    schema = [ref, "literal", ref]
+    assert _resolve_memory_leaves(schema, [None], gs) == ["vv"]
