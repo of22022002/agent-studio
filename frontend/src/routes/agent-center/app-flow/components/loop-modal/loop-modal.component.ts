@@ -646,10 +646,20 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
     this.onSave();
   }
 
+  /**
+   * literal 来源允许的数据类型（noneObjDataTypes 中未禁用的项）。
+   * ref 同步来的 object/array<...> 等复合类型对 literal 非法，需回退 string。
+   */
+  private isValidLiteralDataType(type: unknown): boolean {
+    return this.noneObjDataTypes.some(
+      (option) => !option.disabled && option.value === type,
+    );
+  }
+
   onMidParamTypeChange(row: IWorkflowField) {
     this.onParamTypeChange(row);
-    if (row.value.type === 'literal' && !row.type) {
-      // 仅默认回退，不覆盖用户已选的数据类型
+    if (row.value.type === 'literal' && !this.isValidLiteralDataType(row.type)) {
+      // 仅回退缺失/非法类型（如 ref 同步来的 object），不覆盖用户已选类型
       row.type = 'string';
     }
 
@@ -690,15 +700,20 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
       const res = NodeUtils.initInputs(currentParams.schema as IWorkflowField[], this.nameRefOptions);
       let save = false;
       res?.forEach(resItem => {
-        // 旧数据兼容：历史保存的 literal 中间变量无 type 字段，统一回退 string
-        if (resItem?.value?.type === 'literal' && !resItem.type) {
+        // 旧数据兼容：历史保存的 literal 中间变量无 type 或类型非法时，统一回退 string
+        if (
+          resItem?.value?.type === 'literal' &&
+          !this.isValidLiteralDataType(resItem.type)
+        ) {
           resItem.type = 'string';
         }
         let paramsType = resItem.type;
         if (paramsType === 'array') {
           paramsType = `array<${(resItem as any)?.schema?.type}>` as IWorkflowFieldType;
         }
-        if (resItem?.value?.content[0]) {
+        // 仅 ref 来源的 content 是 IParamRef 数组，类型跟随首个引用；
+        // literal 的 content 是字符串，content[0] 是首字符，不可用于类型同步
+        if (resItem?.value?.type === 'ref' && resItem?.value?.content[0]) {
           if (resItem?.value?.content[0]?.type !== paramsType) {
             save = true;
           }
