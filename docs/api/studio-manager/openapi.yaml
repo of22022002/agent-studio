@@ -5836,6 +5836,7 @@ paths:
         required: true
         schema:
           type: string
+          pattern: agents|workflows
       - name: cid
         in: path
         required: true
