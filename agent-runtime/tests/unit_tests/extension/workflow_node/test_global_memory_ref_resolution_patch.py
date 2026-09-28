@@ -12,14 +12,22 @@ import pytest
 
 from jiuwen.extension.patches.global_memory_ref_resolution_patch import (
     GLOBAL_REF_PREFIX,
+    _patched_commit_state_get_inputs,
     _resolve_memory_leaves,
     apply_global_memory_ref_resolution_patch,
 )
 
-assert apply_global_memory_ref_resolution_patch(), "补丁应在模块导入时应用一次"
+# 幂等应用：无论生产代码（ir_converter / sub_workflow 导入时）是否已先行应用，
+# 均确保本测试进程内补丁生效；返回 True/False 均为正常路径
+apply_global_memory_ref_resolution_patch()
 
-from openjiuwen.core.session import NodeSession, SubWorkflowSession, WorkflowSession
-from openjiuwen.core.session.state.workflow_state import InMemoryState
+from openjiuwen.core.session import NodeSession, SubWorkflowSession, WorkflowSession  # noqa: E402
+from openjiuwen.core.session.state.workflow_state import CommitState, InMemoryState  # noqa: E402
+
+
+def test_patch_hooked_on_commit_state():
+    """补丁必须真正挂载到 CommitState.get_inputs（状态断言，不依赖 apply 返回值）。"""
+    assert CommitState.get_inputs is _patched_commit_state_get_inputs
 
 GLOBAL_REF = "${" + GLOBAL_REF_PREFIX + "mem_counter}"
 
