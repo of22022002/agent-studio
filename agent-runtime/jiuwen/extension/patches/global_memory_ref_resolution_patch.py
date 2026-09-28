@@ -40,23 +40,25 @@ GLOBAL_REF_PREFIX = "MEMORY_VARIABLE."
 _MEMORY_REF_TOKEN = re.compile(r"\$\{(MEMORY_VARIABLE\.[^{}]+)\}")
 
 
-def _extract_memory_ref(value: Any) -> str | None:
-    """若 value 是 `${MEMORY_VARIABLE.xxx}` 形式的引用串，返回 origin key，否则 None。
+def _is_pure_memory_origin(origin: str) -> bool:
+    """origin 是不含花括号的 MEMORY_VARIABLE 路径。
 
-    复合串（如 `${A}/${B}`）剥壳后 origin 仍含花括号，需显式排除，
+    复合串（如 `${A}/${B}`）剥壳后 origin 仍含花括号，据此排除，
     使其落入内嵌插值路径而非被误当作整串引用。
     """
+    if not origin.startswith(GLOBAL_REF_PREFIX) or len(origin) <= len(GLOBAL_REF_PREFIX):
+        return False
+    return "{" not in origin and "}" not in origin
+
+
+def _extract_memory_ref(value: Any) -> str | None:
+    """若 value 是 `${MEMORY_VARIABLE.xxx}` 形式的引用串，返回 origin key，否则 None。"""
     if not isinstance(value, str):
         return None
     if not (value.startswith("${") and value.endswith("}")):
         return None
     origin = value[2:-1]
-    if (
-        origin.startswith(GLOBAL_REF_PREFIX)
-        and len(origin) > len(GLOBAL_REF_PREFIX)
-        and "{" not in origin
-        and "}" not in origin
-    ):
+    if _is_pure_memory_origin(origin):
         return origin
     return None
 
@@ -97,6 +99,13 @@ def _interpolate_memory_refs(text: str, global_state: Any) -> str:
     return _MEMORY_REF_TOKEN.sub(_sub, text)
 
 
+def _needs_interpolation(result: Any, schema: str, global_state: Any) -> bool:
+    """复合字符串是否需要内嵌插值：原解析未命中、存在可用全局仓、串含引用标记。"""
+    if not _is_unresolved(result, schema) or global_state is None:
+        return False
+    return "MEMORY_VARIABLE." in schema and "${" in schema
+
+
 def _is_unresolved(value: Any, schema_leaf: str) -> bool:
     """判断叶子解析结果是否视为"未命中"：None 或原样保留的引用串。"""
     if value is None:
@@ -124,12 +133,7 @@ def _resolve_memory_leaves(schema: Any, result: Any, global_state: Any) -> Any:
                 if value is not None:
                     return value
             return result
-        if (
-            _is_unresolved(result, schema)
-            and global_state is not None
-            and "MEMORY_VARIABLE." in schema
-            and "${" in schema
-        ):
+        if _needs_interpolation(result, schema, global_state):
             interpolated = _interpolate_memory_refs(schema, global_state)
             if interpolated != schema:
                 return interpolated
