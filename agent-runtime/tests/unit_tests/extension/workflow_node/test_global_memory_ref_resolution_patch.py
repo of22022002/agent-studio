@@ -171,3 +171,68 @@ def test_resolve_memory_leaves_result_shorter_than_schema():
     # 越界项之前存在命中项 → 既有槽位修正、越界槽位忽略（长度不变）
     schema = [ref, "literal", ref]
     assert _resolve_memory_leaves(schema, [None], gs) == ["vv"]
+
+
+def test_interpolate_embedded_ref_in_composite_string():
+    """复合字符串中的内嵌引用在原解析未命中时做插值。"""
+    wf_session, _ = _build_loop_scenario()
+    seed = NodeSession(wf_session, "node_seed")
+    seed.state().update_global({f"{GLOBAL_REF_PREFIX}city": "深圳"})
+    seed.state().commit()
+    gs = wf_session.state()._global_state  # pylint: disable=protected-access
+
+    schema = "当前城市：${" + GLOBAL_REF_PREFIX + "city}，请确认"
+    # 引擎对复合串取首个引用路径查询 → None，插值后应得到完整文本
+    assert _resolve_memory_leaves(schema, None, gs) == "当前城市：深圳，请确认"
+
+
+def test_interpolate_leaves_unresolved_refs_untouched():
+    """未命中的内嵌引用保持原样，不伪造空值。"""
+    wf_session, _ = _build_loop_scenario()
+    seed = NodeSession(wf_session, "node_seed")
+    seed.state().update_global({f"{GLOBAL_REF_PREFIX}hit": "H"})
+    seed.state().commit()
+    gs = wf_session.state()._global_state  # pylint: disable=protected-access
+
+    schema = "${" + GLOBAL_REF_PREFIX + "hit}/${" + GLOBAL_REF_PREFIX + "miss}"
+    assert _resolve_memory_leaves(schema, None, gs) == "H/${" + GLOBAL_REF_PREFIX + "miss}"
+
+
+def test_interpolate_dict_value_as_json():
+    """内嵌引用命中 dict/list 时以 JSON 表示。"""
+    wf_session, _ = _build_loop_scenario()
+    seed = NodeSession(wf_session, "node_seed")
+    seed.state().update_global({f"{GLOBAL_REF_PREFIX}obj": {"k": "v"}})
+    seed.state().commit()
+    gs = wf_session.state()._global_state  # pylint: disable=protected-access
+
+    schema = "data=${" + GLOBAL_REF_PREFIX + "obj}"
+    assert _resolve_memory_leaves(schema, None, gs) == 'data={"k": "v"}'
+
+
+def test_interpolate_skipped_when_resolved_or_no_marker():
+    """已解析出实际值、或不含 MEMORY_VARIABLE 标记的串不做插值。"""
+    # 已有实际值 → 不覆盖
+    schema = "prefix ${" + GLOBAL_REF_PREFIX + "x} suffix"
+    assert _resolve_memory_leaves(schema, "already", None) == "already"
+    # 含 ${} 但不含标记 → 不进入插值
+    assert _resolve_memory_leaves("${node_a.b}", None, None) is None
+
+
+def test_global_get_isolates_mutable_values():
+    """global_state 命中可变容器时返回拷贝，原地修改不污染权威存储。"""
+    wf_session, _ = _build_loop_scenario()
+    seed = NodeSession(wf_session, "node_seed")
+    seed.state().update_global({f"{GLOBAL_REF_PREFIX}cfg": {"k": [1]}})
+    seed.state().commit()
+    gs = wf_session.state()._global_state  # pylint: disable=protected-access
+
+    from jiuwen.extension.patches.global_memory_ref_resolution_patch import (
+        _global_get,
+    )
+
+    value = _global_get(gs, f"{GLOBAL_REF_PREFIX}cfg")
+    value["k"].append(999)
+    value["new"] = 1
+    again = _global_get(gs, f"{GLOBAL_REF_PREFIX}cfg")
+    assert again == {"k": [1]}

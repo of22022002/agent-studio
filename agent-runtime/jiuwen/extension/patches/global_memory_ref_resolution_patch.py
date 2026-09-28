@@ -29,32 +29,72 @@ Applied once at import from ir_converter / sub_workflow.
 
 from __future__ import annotations
 
+import copy
+import json
+import re
 from typing import Any
 
 # ${MEMORY_VARIABLE.xxx} 引用前缀（与 loop_set_variable.py / sub_workflow.py 一致）
 GLOBAL_REF_PREFIX = "MEMORY_VARIABLE."
+# 复合字符串中内嵌的 ${MEMORY_VARIABLE.xxx} 引用（不可含嵌套花括号）
+_MEMORY_REF_TOKEN = re.compile(r"\$\{(MEMORY_VARIABLE\.[^{}]+)\}")
 
 
 def _extract_memory_ref(value: Any) -> str | None:
-    """若 value 是 `${MEMORY_VARIABLE.xxx}` 形式的引用串，返回 origin key，否则 None。"""
+    """若 value 是 `${MEMORY_VARIABLE.xxx}` 形式的引用串，返回 origin key，否则 None。
+
+    复合串（如 `${A}/${B}`）剥壳后 origin 仍含花括号，需显式排除，
+    使其落入内嵌插值路径而非被误当作整串引用。
+    """
     if not isinstance(value, str):
         return None
     if not (value.startswith("${") and value.endswith("}")):
         return None
     origin = value[2:-1]
-    if origin.startswith(GLOBAL_REF_PREFIX) and len(origin) > len(GLOBAL_REF_PREFIX):
+    if (
+        origin.startswith(GLOBAL_REF_PREFIX)
+        and len(origin) > len(GLOBAL_REF_PREFIX)
+        and "{" not in origin
+        and "}" not in origin
+    ):
         return origin
     return None
 
 
 def _global_get(global_state: Any, key: str) -> Any:
-    """从 global_state（InMemoryCommitState）按嵌套路径取值；不可用时返回 None。"""
+    """从 global_state（InMemoryCommitState）按嵌套路径取值；不可用时返回 None。
+
+    InMemoryCommitState.get 自身已做 deepcopy；此处对可变容器再补一层拷贝，
+    防御其他未隔离的 CommitStateLike 实现（兜底值被下游节点原地修改后
+    污染权威 global_state）。代价仅发生在命中可变容器的场景。
+    """
     if global_state is None:
         return None
     try:
-        return global_state.get(key)
+        value = global_state.get(key)
     except Exception:  # 兜底路径不允许影响主解析流程
         return None
+    if isinstance(value, (dict, list)):
+        return copy.deepcopy(value)
+    return value
+
+
+def _interpolate_memory_refs(text: str, global_state: Any) -> str:
+    """将复合字符串中内嵌的 `${MEMORY_VARIABLE.xxx}` 引用替换为 global_state 值。
+
+    未命中的引用保持原样；dict/list 以 JSON 表示，其余标量转 str。
+    """
+    def _sub(match: re.Match[str]) -> str:
+        value = _global_get(global_state, match.group(1))
+        if value is None:
+            return match.group(0)
+        if isinstance(value, str):
+            return value
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=False)
+        return str(value)
+
+    return _MEMORY_REF_TOKEN.sub(_sub, text)
 
 
 def _is_unresolved(value: Any, schema_leaf: str) -> bool:
@@ -69,13 +109,30 @@ def _resolve_memory_leaves(schema: Any, result: Any, global_state: Any) -> Any:
 
     COW：仅在实际命中替换时沿路径浅拷贝容器；未命中的子树保持原引用，
     零拷贝零分配。schema 与 result 结构一一对应（均由 get_by_schema 产出）。
+
+    字符串叶子分两类：
+    - 整串引用 ${MEMORY_VARIABLE.xxx}：未命中时整体替换为 global_state 值；
+    - 复合字符串（内嵌引用）：原解析未命中时做插值，未命中的引用保持原样。
+      注：分支表达式（boolExpression）等配置内嵌引用由内核 ExpressionCondition
+      经 get_global 解析，不经过本路径，无需处理。
     """
     if isinstance(schema, str):
         origin = _extract_memory_ref(schema)
-        if origin is not None and _is_unresolved(result, schema):
-            value = _global_get(global_state, origin)
-            if value is not None:
-                return value
+        if origin is not None:
+            if _is_unresolved(result, schema):
+                value = _global_get(global_state, origin)
+                if value is not None:
+                    return value
+            return result
+        if (
+            _is_unresolved(result, schema)
+            and global_state is not None
+            and "MEMORY_VARIABLE." in schema
+            and "${" in schema
+        ):
+            interpolated = _interpolate_memory_refs(schema, global_state)
+            if interpolated != schema:
+                return interpolated
         return result
 
     if isinstance(schema, dict):
