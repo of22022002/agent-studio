@@ -609,7 +609,8 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
 
         if (paramCopy.value.type === 'literal') {
           willPush.source = 'pre_defined';
-          willPush.type = 'string';
+          // 对外暴露真实数据类型，下游 set-variable-modal 据此判断可否自增/自减
+          willPush.type = paramCopy.type || 'string';
         } else {
           willPush = {
             ...paramCopy.value.content[0],
@@ -647,7 +648,8 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
 
   onMidParamTypeChange(row: IWorkflowField) {
     this.onParamTypeChange(row);
-    if (row.value.type === 'literal') {
+    if (row.value.type === 'literal' && !row.type) {
+      // 仅默认回退，不覆盖用户已选的数据类型
       row.type = 'string';
     }
 
@@ -666,6 +668,7 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
   public addMidParam(arr: IWorkflowField[], ops: IParamRef[]) {
     arr.push({
       ...getInitInputParamConfig(),
+      type: 'string',
       source: 'pre_defined',
       refs: cloneDeep(ops),
     });
@@ -687,6 +690,10 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
       const res = NodeUtils.initInputs(currentParams.schema as IWorkflowField[], this.nameRefOptions);
       let save = false;
       res?.forEach(resItem => {
+        // 旧数据兼容：历史保存的 literal 中间变量无 type 字段，统一回退 string
+        if (resItem?.value?.type === 'literal' && !resItem.type) {
+          resItem.type = 'string';
+        }
         let paramsType = resItem.type;
         if (paramsType === 'array') {
           paramsType = `array<${(resItem as any)?.schema?.type}>` as IWorkflowFieldType;
