@@ -12,8 +12,6 @@
 import json
 import os
 
-import pytest
-
 from agent_builder.serve.common.flask_route_dispatch import normalize_registered_flask_path
 
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "b2_route_inventory.json")
@@ -65,8 +63,10 @@ def _flask_public_signature_set(routes):
 
 
 def test_flask_public_routes_match_snapshot():
-    """公开 Flask 路由（rule, endpoint, methods）三元组集合须与 fixture 一致；
-    同路径不同 method（GET/DELETE）不会被折叠——任一登记删除都会失败（P1-1）。"""
+    """公开 Flask 路由三元组集合须与 fixture 一致。
+
+    同路径不同 method（GET/DELETE）不会被折叠——任一登记删除都会失败（P1-1）。
+    """
     snap_routes = [r for r in _load()["flask_url_map"] if r["class"].startswith("public")]
     snap = {
         (r["rule"], r["endpoint"], tuple(sorted(r["methods"])))
@@ -80,8 +80,10 @@ def test_flask_public_routes_match_snapshot():
 
 
 def test_flask_dual_method_paths_have_both_registrations():
-    """P1-1 反例：.../jobs/<job_id> 同时登记 GET + DELETE 两个 endpoint；
-    复合键比较须捕获任一丢失——证明字典折叠不会让单边删除通过。"""
+    """P1-1 反例：同名路径同时登记 GET + DELETE 两个 endpoint。
+
+    复合键比较须捕获任一丢失——证明字典折叠不会让单边删除通过。
+    """
     live = _live_flask_rules()
     for path in (
         "/flask/v1/prompt/templates_optimization/jobs/<job_id>",

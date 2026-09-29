@@ -344,8 +344,10 @@ def test_decorator_werkzeug_preserves_priority_and_unknown(client):
 
 
 def test_werkzeug_objects_from_code_no_attribute_error():
-    """§5.3: 真实 Werkzeug BadRequest/UnsupportedMediaType 对象从 .code 取 400/415；
-    不得出现 AttributeError: status_code（即不得误用 Starlette from_http_exception）。"""
+    """§5.3: 真实 Werkzeug 对象从 .code 取 400/415。
+
+    不得出现 AttributeError: status_code（即不得误用 Starlette from_http_exception）。
+    """
     from werkzeug.exceptions import BadRequest, UnsupportedMediaType
 
     from agent_builder.common.error_contract import factory as error_factory

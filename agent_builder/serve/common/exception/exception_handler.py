@@ -23,12 +23,13 @@ SYNC-01 P5-R3b（2026-09-22）：旧分支 COM-03 此装饰器已改五字段 + 
 from functools import wraps, partial
 from typing import Type
 
+from pydantic import ValidationError
+from werkzeug.exceptions import HTTPException as WerkzeugHTTPException
+
 from agent_builder.adapter.exception_bridge import JiuWenBaseException
 from agent_builder.adapter.request_context_bridge import get_request_id
 from agent_builder.common.error_contract import factory as error_factory
 from agent_builder.common.logging.base import logger
-from pydantic import ValidationError
-from werkzeug.exceptions import HTTPException as WerkzeugHTTPException
 
 
 def _current_language() -> str:

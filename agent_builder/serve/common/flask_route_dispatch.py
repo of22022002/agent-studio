@@ -36,11 +36,11 @@ def normalize_registered_flask_path(path: str) -> str | None:
         return path
     if path == "/flask/v1/MMprompt" or path.startswith("/flask/v1/MMprompt/"):
         return path
-    # 未带前缀的已登记 Flask 路径——补 /flask 前缀
+    # 未带前缀的已登记 Flask 路径——补 /flask 前缀（URL 路由前缀，非文件系统路径）
     if path == "/v1/prompt" or path.startswith("/v1/prompt/"):
-        return "/flask" + path
+        return f"/flask{path}"
     if path == "/v1/MMprompt" or path.startswith("/v1/MMprompt/"):
-        return "/flask" + path
+        return f"/flask{path}"
     return None
 
 
