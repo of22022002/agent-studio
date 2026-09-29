@@ -230,5 +230,3 @@ def test_direct_flask_blueprint_unchanged():
         "direct Flask prompt blueprint @ /flask missing"
     assert any(r.startswith("/flask/v1/MMprompt/") for r in rules), \
         "direct Flask mmapo blueprint @ /flask missing"
-
-

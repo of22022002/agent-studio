@@ -33,16 +33,17 @@ def _live_flask_rules():
     return out
 
 
-def _live_fastapi_paths():
+def _live_fastapi_route_methods():
+    """返回 {(path, tuple(sorted(methods)))}——含 method，捕获 method 漂移（P1-2）。"""
     from agent_builder.serve.server_fastapi import app as fa_app
-    paths = set()
-    stack = list(fa_app.routes)
+    out = set()
 
     def walk(routes):
         for rt in routes:
+            methods = getattr(rt, "methods", None)
             p = getattr(rt, "path", None)
-            if p is not None and getattr(rt, "methods", None) is not None:
-                paths.add(p)
+            if p is not None and methods is not None:
+                out.add((p, tuple(sorted(methods))))
             if hasattr(rt, "routes"):
                 walk(rt.routes)
             orig = getattr(rt, "original_router", None)
@@ -50,20 +51,48 @@ def _live_fastapi_paths():
                 walk(getattr(orig, "routes", []))
 
     walk(fa_app.routes)
-    return paths
+    return out
+
+
+def _flask_public_signature_set(routes):
+    """(rule, endpoint, tuple(sorted(methods))) 复合键——不折叠同路径不同 method
+    （如 .../jobs/<job_id> 的 GET + DELETE 两个 endpoint，P1-1）。"""
+    return {
+        (r["rule"], r["endpoint"], tuple(sorted(r["methods"])))
+        for r in routes
+        if r["rule"].startswith("/flask/v1/")
+    }
 
 
 def test_flask_public_routes_match_snapshot():
-    """公开 Flask 路由（prompt/mmapo）集合须与 fixture 一致；增删须更新 fixture。"""
-    snap = {r["rule"]: r for r in _load()["flask_url_map"] if r["class"].startswith("public")}
-    live = {r["rule"]: r for r in _live_flask_rules() if r["rule"].startswith("/flask/v1/")}
-    assert set(snap) == set(live), (
-        f"Flask public route set drifted from snapshot; "
-        f"missing_in_live={set(snap)-set(live)} new_in_live={set(live)-set(snap)}; "
+    """公开 Flask 路由（rule, endpoint, methods）三元组集合须与 fixture 一致；
+    同路径不同 method（GET/DELETE）不会被折叠——任一登记删除都会失败（P1-1）。"""
+    snap_routes = [r for r in _load()["flask_url_map"] if r["class"].startswith("public")]
+    snap = {
+        (r["rule"], r["endpoint"], tuple(sorted(r["methods"])))
+        for r in snap_routes
+    }
+    live = _flask_public_signature_set(_live_flask_rules())
+    assert snap == live, (
+        f"Flask public (rule,endpoint,methods) set drifted; "
+        f"missing_in_live={snap-live} new_in_live={live-snap}; "
         f"update fixtures/b2_route_inventory.json if change is approved")
-    for rule in snap:
-        assert snap[rule]["methods"] == live[rule]["methods"], (
-            f"methods drift on {rule}: snap={snap[rule]['methods']} live={live[rule]['methods']}")
+
+
+def test_flask_dual_method_paths_have_both_registrations():
+    """P1-1 反例：.../jobs/<job_id> 同时登记 GET + DELETE 两个 endpoint；
+    复合键比较须捕获任一丢失——证明字典折叠不会让单边删除通过。"""
+    live = _live_flask_rules()
+    for path in (
+        "/flask/v1/prompt/templates_optimization/jobs/<job_id>",
+        "/flask/v1/MMprompt/templates_optimization/jobs/<job_id>",
+    ):
+        entries = [r for r in live if r["rule"] == path]
+        method_sets = {tuple(sorted(r["methods"])) for r in entries}
+        endpoints = {r["endpoint"] for r in entries}
+        assert ("GET",) in method_sets, f"{path} missing GET registration"
+        assert ("DELETE",) in method_sets, f"{path} missing DELETE registration"
+        assert len(endpoints) == 2, f"{path} should have 2 endpoints (GET+DELETE), got {endpoints}"
 
 
 def test_every_public_flask_route_covered_by_dispatcher():
@@ -87,13 +116,12 @@ def test_static_route_classified_and_excluded():
 
 
 def test_fastapi_route_set_stable():
-    """FastAPI 公开路由集合须与 fixture 一致（root mount 移除后 FastAPI 拥有的路径）。"""
-    snap_paths = {r["path"] for r in _load()["fastapi_routes"]}
-    live_paths = _live_fastapi_paths()
-    assert snap_paths == live_paths, (
-        f"FastAPI route set drifted; "
-        f"missing={snap_paths-live_paths} new={live_paths-snap_paths}; "
-        f"update fixture if approved")
+    """FastAPI (path, methods) 集合须与 fixture 一致——捕获 method 变化（P1-2）。"""
+    snap = {(r["path"], tuple(r["methods"])) for r in _load()["fastapi_routes"]}
+    live = _live_fastapi_route_methods()
+    assert snap == live, (
+        f"FastAPI (path,methods) set drifted; "
+        f"missing={snap-live} new={live-snap}; update fixture if approved")
 
 
 def test_no_root_catch_all_mount():
