@@ -336,6 +336,48 @@ public class PluginBaseImpl implements IPluginBase {
 
     }
 
+    /**
+     * 安全解析工具测试状态，兼容历史数据三种格式，解析失败回退 UNKNOWN(2)，不抛异常：
+     * 1. 纯数字："0" / "1" / "2"
+     * 2. 紧凑 JSON 数组：[{"tool_id":"0","test_status":0}]
+     * 3. 带空格 JSON 数组：[{"tool_id":"0", "test_status": 0}]
+     *
+     * @param testStatus test_status 存储值
+     * @param toolId 工具ID，JSON 数组格式时优先取匹配 toolId 的状态
+     * @return 解析后的测试状态码，解析失败或为空时返回 UNKNOWN
+     */
+    private Integer safeParseTestStatus(String testStatus, String toolId) {
+        if (StringUtils.isBlank(testStatus)) {
+            return TestStatus.UNKNOWN.getCode();
+        }
+        String trimmed = testStatus.trim();
+        if (trimmed.startsWith("[")) {
+            try {
+                List<ToolTestStatus> testStatusList = JsonUtils.JSON_MAPPER.readValue(trimmed,
+                    JsonUtils.JSON_MAPPER.getTypeFactory()
+                        .constructCollectionType(List.class, ToolTestStatus.class));
+                return testStatusList.stream()
+                    .filter(target -> target.getToolId() != null && target.getToolId().equals(toolId))
+                    .findFirst()
+                    .map(ToolTestStatus::getTestStatus)
+                    .orElseGet(() -> testStatusList.stream()
+                        .filter(target -> "0".equals(target.getToolId()))
+                        .findFirst()
+                        .map(ToolTestStatus::getTestStatus)
+                        .orElse(TestStatus.UNKNOWN.getCode()));
+            } catch (JsonProcessingException e) {
+                log.warn("Failed to parse test status JSON, fallback to UNKNOWN. testStatus={}", trimmed, e);
+                return TestStatus.UNKNOWN.getCode();
+            }
+        }
+        try {
+            return Integer.parseInt(trimmed);
+        } catch (NumberFormatException e) {
+            log.warn("Failed to parse test status number, fallback to UNKNOWN. testStatus={}", testStatus);
+            return TestStatus.UNKNOWN.getCode();
+        }
+    }
+
     private String buildOutputSchema(String outputSchema, String toolId) {
         List<ToolOutputSchema> toolOutputSchemas;
         if (StringUtils.isEmpty(outputSchema)) {
@@ -1172,9 +1214,7 @@ public class PluginBaseImpl implements IPluginBase {
         // 构建TestStatus字段
         ToolTestStatus toolTestStatus = ToolTestStatus.builder()
                 .toolId(toolId)
-                .testStatus(pluginEntity.getTestStatus() != null
-                        ? Integer.parseInt(pluginEntity.getTestStatus())
-                        : TestStatus.UNKNOWN.getCode())
+                .testStatus(safeParseTestStatus(pluginEntity.getTestStatus(), toolId))
                 .build();
         List<ToolTestStatus> toolTestStatusList = new ArrayList<>();
         toolTestStatusList.add(toolTestStatus);
