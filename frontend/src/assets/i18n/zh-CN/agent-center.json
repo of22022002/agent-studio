@@ -513,6 +513,7 @@
   "icon-more": "更多",
   "icon-close": "关闭",
   "type": "类型",
+  "data_type": "数据类型",
   "value": "值",
   "not_configured": "未配置",
   "node_error": "节点错误",

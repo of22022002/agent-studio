@@ -152,6 +152,12 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
 
   public noneObjDataTypes = getNoneObjOutputParamTypes();
 
+  // boolean 中间变量的字面量值固定为 true/false 下拉，避免任意文本存成无效布尔
+  public booleanLiteralOptions = [
+    { label: 'true', value: true },
+    { label: 'false', value: false },
+  ];
+
   public sourceOptions = [
     { label: this.i18n.transform('ref'), value: 'ref' },
     { label: this.i18n.transform('literal'), value: 'literal' },
@@ -471,6 +477,15 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
     }
 
     if (this.midParams && this.midParams.length) {
+      // integer/number 的 literal 内容以字符串承载，序列化前转为数值，
+      // 保证 intermediate_loop_var schema 中类型声明与值类型一致
+      const midParamsForDto = this.midParams.map((param) => {
+        const copy = cloneDeep(param);
+        // 校验被绕过的非法内容（如 'abc'）落库前归一为类型默认值，
+        // 避免 integer/number 类型携带字符串/空串
+        this.normalizeTypedLiteralContent(copy);
+        return copy;
+      });
       inputs.push({
         name: 'intermediate_loop_var',
         type: 'object',
@@ -484,7 +499,7 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
           default: '',
         },
         schema: NodeUtils.getDtoInputs(
-          this.midParams.filter((param) => param.name),
+          midParamsForDto.filter((param) => param.name),
         ),
       });
     }
@@ -589,14 +604,27 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
     this.updateConditionOps();
   }
 
+  /** literal 中间变量是否已填写：显式判空，0/false 是合法值不能用真值判断 */
+  private isLiteralFilled(param: IWorkflowField): boolean {
+    return (
+      param.value.type === 'literal' &&
+      param.value.content !== '' &&
+      param.value.content != null
+    );
+  }
+
+  /** ref 中间变量是否已选择引用 */
+  private isRefFilled(param: IWorkflowField): boolean {
+    return (
+      Array.isArray(param.value.content) && param.value.content.length > 0
+    );
+  }
+
   onMidRefChange(init?: boolean) {
     const newMidRefs: IParamRef[] = [];
     this.midParams.forEach((param) => {
-      if (
-        (param.name && param.value.type === 'literal' && param.value.content) ||
-        (param.value.type === 'ref' &&
-          (param.value.content as IParamRef[]).length)
-      ) {
+      // 注意：integer 0 / boolean false 是合法字面量，禁止真值判断
+      if ((param.name && this.isLiteralFilled(param)) || this.isRefFilled(param)) {
         const paramCopy = cloneDeep(param);
 
         let willPush: Partial<IParamRef> = {
@@ -609,12 +637,19 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
 
         if (paramCopy.value.type === 'literal') {
           willPush.source = 'pre_defined';
-          willPush.type = 'string';
+          // 对外暴露真实数据类型，下游 set-variable-modal 据此判断可否自增/自减
+          willPush.type = paramCopy.type || 'string';
         } else {
           willPush = {
             ...paramCopy.value.content[0],
             ...willPush,
           };
+          // ref 来源类型跟随引用值，同步回行数据供数据类型列展示
+          const refType = (paramCopy.value.content[0] as IParamRef)
+            ?.type as IWorkflowFieldType;
+          if (refType) {
+            param.type = refType;
+          }
         }
 
         newMidRefs.push(willPush as IParamRef);
@@ -645,10 +680,105 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
     this.onSave();
   }
 
+  /**
+   * literal 来源且类型为 integer/number、内容为非空字符串——
+   * 需要在序列化/读取时做数值化转换的场景。
+   */
+  /** literal 来源各类型的默认内容：integer/number→0、boolean→false、其余→'' */
+  private defaultLiteralContent(type: IWorkflowFieldType): string | number | boolean {
+    if (type === 'boolean') {
+      return false;
+    }
+    if (type === 'integer' || type === 'number') {
+      return 0;
+    }
+    return '';
+  }
+
+  /**
+   * literal 内容按类型归一：integer 仅接受整数值（'1.5'/1.5 → 0）、
+   * number 接受有限数值、boolean 仅接受布尔，非法/缺失回退类型默认值。
+   * 返回是否发生修正（供读取端触发持久化）。
+   * G.CTL.03：拆分 if 保证单条语句操作数 ≤3。
+   */
+  private normalizeTypedLiteralContent(item: IWorkflowField): boolean {
+    if (item?.value?.type !== 'literal') {
+      return false;
+    }
+    if (item.type === 'boolean') {
+      if (typeof item.value.content !== 'boolean') {
+        item.value.content = false;
+        return true;
+      }
+      return false;
+    }
+    if (item.type === 'number') {
+      if (
+        typeof item.value.content === 'number' &&
+        Number.isFinite(item.value.content)
+      ) {
+        return false;
+      }
+      const parsed =
+        typeof item.value.content === 'string' && item.value.content.trim() !== ''
+          ? Number(item.value.content)
+          : NaN;
+      item.value.content = Number.isFinite(parsed) ? parsed : 0;
+      return true;
+    }
+    if (item.type === 'integer') {
+      if (
+        typeof item.value.content === 'number' &&
+        Number.isInteger(item.value.content)
+      ) {
+        return false;
+      }
+      const parsed =
+        typeof item.value.content === 'string' && item.value.content.trim() !== ''
+          ? Number(item.value.content)
+          : NaN;
+      // 非整数值（如 '1.5'/1.5）就近取整（Math.trunc，对齐运行时 int() 截断语义），
+      // 仅无法转换为数值时回退默认 0
+      item.value.content = Number.isFinite(parsed) ? Math.trunc(parsed) : 0;
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * literal 来源允许的数据类型（noneObjDataTypes 中未禁用的项）。
+   * ref 同步来的 object/array<...> 等复合类型对 literal 非法，需回退 string。
+   */
+  private isValidLiteralDataType(type: unknown): boolean {
+    return this.noneObjDataTypes.some(
+      (option) => !option.disabled && option.value === type,
+    );
+  }
+
+  /**
+   * 中间变量数据类型切换：字面量内容重置为新类型默认值，
+   * 避免旧类型内容（如字符串文本）随 boolean/integer 类型一起保存，
+   * 破坏 intermediate_loop_var schema 的类型一致性。
+   */
+  public onMidParamDataTypeChange(row: IWorkflowField) {
+    if (row.value.type === 'literal') {
+      if (!this.isValidLiteralDataType(row.type)) {
+        row.type = 'string';
+      }
+      row.value.content = this.defaultLiteralContent(row.type);
+    }
+    this.onMidRefChange();
+  }
+
   onMidParamTypeChange(row: IWorkflowField) {
     this.onParamTypeChange(row);
     if (row.value.type === 'literal') {
-      row.type = 'string';
+      if (!this.isValidLiteralDataType(row.type)) {
+        // 缺失/非法类型（如 ref 同步来的 object）回退 string
+        row.type = 'string';
+      }
+      // 来源切回 literal：内容统一为类型默认值，避免 integer/number/boolean 携带空字符串落库
+      row.value.content = this.defaultLiteralContent(row.type);
     }
 
     this.onMidRefChange();
@@ -666,6 +796,7 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
   public addMidParam(arr: IWorkflowField[], ops: IParamRef[]) {
     arr.push({
       ...getInitInputParamConfig(),
+      type: 'string',
       source: 'pre_defined',
       refs: cloneDeep(ops),
     });
@@ -687,11 +818,25 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
       const res = NodeUtils.initInputs(currentParams.schema as IWorkflowField[], this.nameRefOptions);
       let save = false;
       res?.forEach(resItem => {
+        // 旧数据兼容：无 type 或类型非法（ref 同步来的复合类型）回退 string
+        if (
+          resItem?.value?.type === 'literal' &&
+          !this.isValidLiteralDataType(resItem.type)
+        ) {
+          resItem.type = 'string';
+          save = true;
+        }
+        // 按类型归一内容并持久化修正：否则 tagCompareNoChange 跳过保存，脏数据无法自愈
+        if (this.normalizeTypedLiteralContent(resItem)) {
+          save = true;
+        }
         let paramsType = resItem.type;
         if (paramsType === 'array') {
           paramsType = `array<${(resItem as any)?.schema?.type}>` as IWorkflowFieldType;
         }
-        if (resItem?.value?.content[0]) {
+        // 仅 ref 来源的 content 是 IParamRef 数组，类型跟随首个引用；
+        // literal 的 content 是字符串，content[0] 是首字符，不可用于类型同步
+        if (resItem?.value?.type === 'ref' && resItem?.value?.content[0]) {
           if (resItem?.value?.content[0]?.type !== paramsType) {
             save = true;
           }
@@ -855,6 +1000,16 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
     return [];
   }
 
+  /**
+   * 中间变量 ref 选择回调：保留 treeSelect 的延迟保存时序，
+   * 并触发 onMidRefChange 同步 outputOptions 引用类型与数据类型列展示。
+   */
+  public onMidParamRefSelect() {
+    setTimeout(() => {
+      this.onMidRefChange();
+    });
+  }
+
   treeSelect() {
     setTimeout(() => {
       this.onSave();
@@ -940,6 +1095,12 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
   }
 
   handelSave() {
+    // 中间变量表单校验未通过（变量名/字面量值非法）时阻止落库，
+    // 避免用户看到红色错误提示的同时非法输入被静默改写为默认值持久化
+    if (this.midParamForm?.invalid) {
+      this.midParamForm.form.markAllAsTouched();
+      return;
+    }
     if (this.tagCompareNoChange()) {
       return;
     }
