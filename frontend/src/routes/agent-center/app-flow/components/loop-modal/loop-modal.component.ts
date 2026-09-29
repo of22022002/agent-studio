@@ -483,9 +483,8 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
         const copy = cloneDeep(param);
         if (this.isNumericStringLiteral(copy)) {
           const parsed = Number(copy.value.content);
-          if (!Number.isNaN(parsed)) {
-            copy.value.content = parsed;
-          }
+          // 校验被绕过的非法文本（如 'abc'）落库前归null，避免 integer/number 类型携带字符串
+          copy.value.content = Number.isNaN(parsed) ? null : parsed;
         }
         return copy;
       });
@@ -609,7 +608,11 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
 
   /** literal 中间变量是否已填写：显式判空，0/false 是合法值不能用真值判断 */
   private isLiteralFilled(param: IWorkflowField): boolean {
-    return param.value.content !== '' && param.value.content != null;
+    return (
+      param.value.type === 'literal' &&
+      param.value.content !== '' &&
+      param.value.content != null
+    );
   }
 
   /** ref 中间变量是否已选择引用 */
