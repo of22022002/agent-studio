@@ -313,7 +313,8 @@
                       *ngIf="
                         param.value.type === 'literal' &&
                         param.type !== 'integer' &&
-                        param.type !== 'number'
+                        param.type !== 'number' &&
+                        param.type !== 'boolean'
                       "
                       style="width: 100%"
                       type="text"
@@ -326,6 +327,19 @@
                       [title]="param.value.content"
                       [class.input-error]="midParamForm?.controls['midParamValue' + i]?.invalid && (midParamForm?.controls['midParamValue' + i]?.dirty || midParamForm?.controls['midParamValue' + i]?.touched)"
                     />
+
+                    <nz-select
+                      class="combo-select-right"
+                      *ngIf="
+                        param.value.type === 'literal' &&
+                        param.type === 'boolean'
+                      "
+                      style="width: 100%"
+                      [nzOptions]="booleanLiteralOptions"
+                      [name]="'midParamValue' + i"
+                      [(ngModel)]="param.value.content"
+                      (ngModelChange)="onMidRefChange()"
+                    ></nz-select>
 
                     <input
                       class="combo-select-right"
@@ -372,7 +386,7 @@
                       [options]="param.refs"
                       [name]="'midParamValue' + i"
                       refSelectedRequire
-                      (select)="treeSelect()"
+                      (select)="onMidParamRefSelect()"
                       [placeholder]="'select_placeholder' | i18nextEager"
                     ></input-tree-select>
 

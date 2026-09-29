@@ -152,6 +152,12 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
 
   public noneObjDataTypes = getNoneObjOutputParamTypes();
 
+  // boolean 中间变量的字面量值固定为 true/false 下拉，避免任意文本存成无效布尔
+  public booleanLiteralOptions = [
+    { label: 'true', value: true },
+    { label: 'false', value: false },
+  ];
+
   public sourceOptions = [
     { label: this.i18n.transform('ref'), value: 'ref' },
     { label: this.i18n.transform('literal'), value: 'literal' },
@@ -471,6 +477,23 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
     }
 
     if (this.midParams && this.midParams.length) {
+      // integer/number 的 literal 内容以字符串承载，序列化前转为数值，
+      // 保证 intermediate_loop_var schema 中类型声明与值类型一致
+      const midParamsForDto = this.midParams.map((param) => {
+        const copy = cloneDeep(param);
+        if (
+          copy.value.type === 'literal' &&
+          (copy.type === 'integer' || copy.type === 'number') &&
+          typeof copy.value.content === 'string' &&
+          copy.value.content !== ''
+        ) {
+          const parsed = Number(copy.value.content);
+          if (!Number.isNaN(parsed)) {
+            copy.value.content = parsed;
+          }
+        }
+        return copy;
+      });
       inputs.push({
         name: 'intermediate_loop_var',
         type: 'object',
@@ -484,7 +507,7 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
           default: '',
         },
         schema: NodeUtils.getDtoInputs(
-          this.midParams.filter((param) => param.name),
+          midParamsForDto.filter((param) => param.name),
         ),
       });
     }
@@ -713,6 +736,16 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
         ) {
           resItem.type = 'string';
         }
+        // 数值类型的字符串内容读取时转为数值（对齐 getNumLoopVar 的清洗逻辑）
+        if (
+          resItem?.value?.type === 'literal' &&
+          (resItem.type === 'integer' || resItem.type === 'number') &&
+          typeof resItem.value.content === 'string' &&
+          resItem.value.content !== ''
+        ) {
+          const parsed = Number(resItem.value.content);
+          resItem.value.content = Number.isNaN(parsed) ? null : parsed;
+        }
         let paramsType = resItem.type;
         if (paramsType === 'array') {
           paramsType = `array<${(resItem as any)?.schema?.type}>` as IWorkflowFieldType;
@@ -881,6 +914,16 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
     }
 
     return [];
+  }
+
+  /**
+   * 中间变量 ref 选择回调：保留 treeSelect 的延迟保存时序，
+   * 并触发 onMidRefChange 同步 outputOptions 引用类型与数据类型列展示。
+   */
+  public onMidParamRefSelect() {
+    setTimeout(() => {
+      this.onMidRefChange();
+    });
   }
 
   treeSelect() {
