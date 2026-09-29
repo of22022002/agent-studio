@@ -79,6 +79,7 @@ from jiuwen.serve.controllers.execution.manager import (
 )
 from jiuwen.serve.controllers.execution.open_utils import (
     async_ir_load,
+    async_ir_load_batch,
     serialize_object,
 )
 from jiuwen.serve.controllers.execution.types import (
@@ -1633,8 +1634,16 @@ class AgentIrUtils:
             "intent": [],
         }
 
-        for workflow_info in ir_data.get("configs", {}).get("workflows", []):
-            workflow_ir = await async_ir_load(workflow_info.get("ir_path"))
+        workflow_infos = ir_data.get("configs", {}).get("workflows", [])
+        # 并发预取全部工作流 IR；加载语义（含空 ir_path 的处理）与原串行逐个
+        # async_ir_load 一致，失败传播语义也保持 fail-fast
+        workflow_irs = await async_ir_load_batch(
+            [info.get("ir_path") for info in workflow_infos]
+        )
+
+        for workflow_info, workflow_ir in zip(
+            workflow_infos, workflow_irs, strict=True
+        ):
             action_after_completion = ActionAfterCompletionType.from_string(
                 workflow_info.get("action_after_completion", "Continue")
             )
@@ -1671,26 +1680,37 @@ class AgentIrUtils:
         """Process global intent workflows"""
         global_workflow_configs = []
 
-        for intent in ir_data.get("configs", {}).get("global_intents", []):
+        intents = ir_data.get("configs", {}).get("global_intents", [])
+
+        def _needs_workflow_ir(intent) -> bool:
+            """过滤需要预取 workflow IR 的意图；预取与消费经 zip(strict=True)
+            一一配对，数量对齐由构造保证，不再依赖消费侧同源谓词"""
+            return intent.get("handler_type", "Workflow") == (
+                HandlerType.WORKFLOW.value
+            ) and bool(intent.get("handler"))
+
+        # 并发预取需要加载 IR 的意图；zip(strict=True) 把"预取数量==消费数量"
+        # 锁定在构造上，两侧失配抛带上下文的 ValueError 而非裸 StopIteration
+        workflow_intents = [intent for intent in intents if _needs_workflow_ir(intent)]
+        loaded_irs = await async_ir_load_batch(
+            [intent["handler"].get("ir_path") for intent in workflow_intents]
+        )
+
+        for intent, workflow_ir in zip(workflow_intents, loaded_irs, strict=True):
             action = ActionAfterCompletionType.from_string(
                 intent.get(
                     "action_after_completion",
                     ActionAfterCompletionType.WAITING_USER_INPUT.value,
                 )
             )
-            handler_type = intent.get("handler_type", "Workflow")
-
-            if handler_type == HandlerType.WORKFLOW.value and intent.get("handler"):
-                handler = intent["handler"]
-                workflow_ir = await async_ir_load(handler.get("ir_path"))
-                if workflow_ir:
-                    global_workflow_configs.append(
-                        WorkflowConfig(
-                            workflow_ir=workflow_ir,
-                            action_after_completion=action,
-                            config_name=handler.get("name"),
-                        )
+            if workflow_ir:
+                global_workflow_configs.append(
+                    WorkflowConfig(
+                        workflow_ir=workflow_ir,
+                        action_after_completion=action,
+                        config_name=intent["handler"].get("name"),
                     )
+                )
 
         return global_workflow_configs
 

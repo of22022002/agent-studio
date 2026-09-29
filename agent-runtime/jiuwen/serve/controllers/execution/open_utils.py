@@ -440,6 +440,86 @@ async def _async_ir_load_uncached(path: str) -> dict:
     return ir_data
 
 
+async def async_ir_load_batch(
+    paths: list,
+    *,
+    return_exceptions: bool = False,
+    max_concurrency: Optional[int] = None,
+) -> list:
+    """并发批量加载多个 IR，返回与 paths 按位对齐的结果列表。
+
+    用于构建期一次性拉取多个子 IR（多智能体成员、挂载工作流、子工作流
+    定义等），替代 for 循环内逐个 await 的串行 IO 往返；每次加载仍走
+    async_ir_load（层级查找 内存 → Redis → OBS 与 TTL 续期行为不变），
+    转换/递归逻辑由调用方在预取完成后按原顺序串行执行。
+
+    Args:
+        paths: IR 路径列表，可含重复与 None（语义与逐个调用 async_ir_load
+            一致，None 会走加载并按各自异常策略处理）。
+        return_exceptions: True 时加载失败项以异常对象占位、其余正常返回
+            （调用方自行跳过）；False 时首个异常直接抛出（对齐串行版
+            逐个 await "首错即断"语义）。注意三点与串行版的可观测差异：
+            ①抛出的是"完成序"首个异常而非"声明序"首个；②fail-fast 时
+            其余在飞加载不会被取消，会继续完成并写入缓存（利于重试）。
+            故障期流量放大已评估有界：每失败请求额外尝试 ≤ N-k 次且均为
+            快速失败（Redis 拒连/OBS 404），瞬时并发恒 ≤ max_concurrency，
+            与正常冷构建同处连接池容量包络、不产生新上限；典型一层子节点
+            N≤5 时全批已在飞、取消无净收益，大 batch 的 cancel-remaining
+            列为后续候选；
+            ③同批重复路径共享同一次加载的结果/异常占位，串行版"循环内
+            再次遇到同路径时重新加载"的偶发重试在批内不再发生（并发化
+            固有：请求级缓存按任务合并同路径的在飞加载，与是否去重无关；
+            失败项仍会被剔除出请求级缓存，跨批次再次访问会重新加载）。
+        max_concurrency: 单批并发上限，必须 ≥1（<1 抛 ValueError：0 会
+            使信号量 acquire 永久阻塞且无报错）。None 表示读
+            settings.cache.ir_load_max_concurrency（env
+            IR_LOAD_MAX_CONCURRENCY，默认 5，pydantic ge=1 保证非法 env
+            启动即报错）。该上限是"每次批量调用"的
+            约束而非全局预算：冷缓存下瞬时 Redis 连接需求 ≈ 并发构建
+            请求数 × 本值，与 REDIS_MAX_CONNECTIONS（共享池，默认 50，
+            池耗尽抛 "Too many connections" 不排队）核算后调整。
+
+    Returns:
+        与 paths 等长、按位对齐的结果列表；重复路径返回同一共享对象
+        （与缓存返回共享引用一致，调用方不可原地修改）。
+    """
+    if max_concurrency is None:
+        max_concurrency = settings.cache.ir_load_max_concurrency
+    if max_concurrency < 1:
+        # fail-fast：0 会使 Semaphore acquire 永久阻塞（请求挂起无报错），
+        # 负数在 Semaphore 构造处抛错但消息不指向配置项——统一在此显式校验
+        raise ValueError(
+            f"max_concurrency must be >= 1, got {max_concurrency} "
+            "(settings.cache.ir_load_max_concurrency / env IR_LOAD_MAX_CONCURRENCY)"
+        )
+    # 去重保序：相同 path 只发一次实际加载。缓存语义下重复路径本就返回
+    # 同一共享对象，去重不改变可见行为，只省重复 IO；不可哈希的畸形
+    # path 退化为不去重逐个加载，保持与串行版一致的失败语义
+    try:
+        unique_paths = list(dict.fromkeys(paths))
+        dedup = True
+    except TypeError:
+        unique_paths = list(paths)
+        dedup = False
+    if not unique_paths:
+        return []
+    semaphore = asyncio.Semaphore(max_concurrency)
+
+    async def _load_one(path):
+        async with semaphore:
+            return await async_ir_load(path)
+
+    unique_results = await asyncio.gather(
+        *(_load_one(p) for p in unique_paths),
+        return_exceptions=return_exceptions,
+    )
+    if not dedup:
+        # 退化模式未去重，结果已与输入按位对齐，直接返回
+        return unique_results
+    result_map = dict(zip(unique_paths, unique_results, strict=True))
+    return [result_map[p] for p in paths]
+
+
 @log_function_timing
 def ir_load(path: str) -> dict:
     """同步加载IR内容，支持任意Python对象缓存。
