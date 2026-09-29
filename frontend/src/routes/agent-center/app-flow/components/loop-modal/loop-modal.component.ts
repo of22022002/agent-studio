@@ -696,8 +696,9 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
   }
 
   /**
-   * literal 内容按类型归一（integer/number→数值、boolean→布尔），
-   * 非法/缺失回退类型默认值。返回是否发生修正（供读取端触发持久化）。
+   * literal 内容按类型归一：integer 仅接受整数值（'1.5'/1.5 → 0）、
+   * number 接受有限数值、boolean 仅接受布尔，非法/缺失回退类型默认值。
+   * 返回是否发生修正（供读取端触发持久化）。
    * G.CTL.03：拆分 if 保证单条语句操作数 ≤3。
    */
   private normalizeTypedLiteralContent(item: IWorkflowField): boolean {
@@ -711,15 +712,33 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
       }
       return false;
     }
-    if (item.type === 'integer' || item.type === 'number') {
-      if (typeof item.value.content === 'number') {
+    if (item.type === 'number') {
+      if (
+        typeof item.value.content === 'number' &&
+        Number.isFinite(item.value.content)
+      ) {
         return false;
       }
       const parsed =
-        typeof item.value.content === 'string' && item.value.content !== ''
+        typeof item.value.content === 'string' && item.value.content.trim() !== ''
           ? Number(item.value.content)
           : NaN;
-      item.value.content = Number.isNaN(parsed) ? 0 : parsed;
+      item.value.content = Number.isFinite(parsed) ? parsed : 0;
+      return true;
+    }
+    if (item.type === 'integer') {
+      if (
+        typeof item.value.content === 'number' &&
+        Number.isInteger(item.value.content)
+      ) {
+        return false;
+      }
+      const parsed =
+        typeof item.value.content === 'string' && item.value.content.trim() !== ''
+          ? Number(item.value.content)
+          : NaN;
+      // integer 类型拒绝非整数值（如 '1.5'/1.5），回退默认 0
+      item.value.content = Number.isInteger(parsed) ? parsed : 0;
       return true;
     }
     return false;
