@@ -284,6 +284,15 @@ class CacheSettings(BaseSettings):
     ir_load_max_concurrency: int = Field(
         default=5, ge=1, validation_alias="IR_LOAD_MAX_CONCURRENCY"
     )
+    ir_cache_ttl_seconds: int = Field(
+        default=24 * 60 * 60, validation_alias="IR_CACHE_TTL_SECONDS", ge=1
+    )
+    workflow_cache_ttl_seconds: int = Field(
+        default=24 * 60 * 60, validation_alias="WORKFLOW_CACHE_TTL_SECONDS", ge=1
+    )
+    agent_cache_ttl_seconds: int = Field(
+        default=24 * 60 * 60, validation_alias="AGENT_CACHE_TTL_SECONDS", ge=1
+    )
     max_cache_data_size: int = Field(
         default=2 * 1024 * 1024, validation_alias="MAX_CACHE_DATA_SIZE"
     )
