@@ -481,11 +481,9 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
       // 保证 intermediate_loop_var schema 中类型声明与值类型一致
       const midParamsForDto = this.midParams.map((param) => {
         const copy = cloneDeep(param);
-        if (this.isNumericStringLiteral(copy)) {
-          const parsed = Number(copy.value.content);
-          // 校验被绕过的非法文本（如 'abc'）落库前归null，避免 integer/number 类型携带字符串
-          copy.value.content = Number.isNaN(parsed) ? null : parsed;
-        }
+        // 校验被绕过的非法内容（如 'abc'）落库前归一为类型默认值，
+        // 避免 integer/number 类型携带字符串/空串
+        this.normalizeTypedLiteralContent(copy);
         return copy;
       });
       inputs.push({
@@ -686,14 +684,45 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
    * literal 来源且类型为 integer/number、内容为非空字符串——
    * 需要在序列化/读取时做数值化转换的场景。
    */
-  private isNumericStringLiteral(item: IWorkflowField): boolean {
+  /** literal 来源各类型的默认内容：integer/number→0、boolean→false、其余→'' */
+  private defaultLiteralContent(type: IWorkflowFieldType): string | number | boolean {
+    if (type === 'boolean') {
+      return false;
+    }
+    if (type === 'integer' || type === 'number') {
+      return 0;
+    }
+    return '';
+  }
+
+  /**
+   * literal 内容按类型归一（integer/number→数值、boolean→布尔），
+   * 非法/缺失回退类型默认值。返回是否发生修正（供读取端触发持久化）。
+   * G.CTL.03：拆分 if 保证单条语句操作数 ≤3。
+   */
+  private normalizeTypedLiteralContent(item: IWorkflowField): boolean {
     if (item?.value?.type !== 'literal') {
       return false;
     }
-    if (item.type !== 'integer' && item.type !== 'number') {
+    if (item.type === 'boolean') {
+      if (typeof item.value.content !== 'boolean') {
+        item.value.content = false;
+        return true;
+      }
       return false;
     }
-    return typeof item.value.content === 'string' && item.value.content !== '';
+    if (item.type === 'integer' || item.type === 'number') {
+      if (typeof item.value.content === 'number') {
+        return false;
+      }
+      const parsed =
+        typeof item.value.content === 'string' && item.value.content !== ''
+          ? Number(item.value.content)
+          : NaN;
+      item.value.content = Number.isNaN(parsed) ? 0 : parsed;
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -713,22 +742,23 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
    */
   public onMidParamDataTypeChange(row: IWorkflowField) {
     if (row.value.type === 'literal') {
-      if (row.type === 'boolean') {
-        row.value.content = false;
-      } else if (row.type === 'integer' || row.type === 'number') {
-        row.value.content = 0;
-      } else {
-        row.value.content = '';
+      if (!this.isValidLiteralDataType(row.type)) {
+        row.type = 'string';
       }
+      row.value.content = this.defaultLiteralContent(row.type);
     }
     this.onMidRefChange();
   }
 
   onMidParamTypeChange(row: IWorkflowField) {
     this.onParamTypeChange(row);
-    if (row.value.type === 'literal' && !this.isValidLiteralDataType(row.type)) {
-      // 仅回退缺失/非法类型（如 ref 同步来的 object），不覆盖用户已选类型
-      row.type = 'string';
+    if (row.value.type === 'literal') {
+      if (!this.isValidLiteralDataType(row.type)) {
+        // 缺失/非法类型（如 ref 同步来的 object）回退 string
+        row.type = 'string';
+      }
+      // 来源切回 literal：内容统一为类型默认值，避免 integer/number/boolean 携带空字符串落库
+      row.value.content = this.defaultLiteralContent(row.type);
     }
 
     this.onMidRefChange();
@@ -768,25 +798,17 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
       const res = NodeUtils.initInputs(currentParams.schema as IWorkflowField[], this.nameRefOptions);
       let save = false;
       res?.forEach(resItem => {
-        // 旧数据兼容：历史保存的 literal 中间变量无 type 或类型非法时，统一回退 string
+        // 旧数据兼容：无 type 或类型非法（ref 同步来的复合类型）回退 string
         if (
           resItem?.value?.type === 'literal' &&
           !this.isValidLiteralDataType(resItem.type)
         ) {
           resItem.type = 'string';
+          save = true;
         }
-        // 数值类型的字符串内容读取时转为数值（对齐 getNumLoopVar 的清洗逻辑）
-        if (this.isNumericStringLiteral(resItem)) {
-          const parsed = Number(resItem.value.content);
-          resItem.value.content = Number.isNaN(parsed) ? null : parsed;
-        }
-        // boolean 类型内容非法（历史污染/空值）时回退 false
-        if (
-          resItem?.value?.type === 'literal' &&
-          resItem.type === 'boolean' &&
-          typeof resItem.value.content !== 'boolean'
-        ) {
-          resItem.value.content = false;
+        // 按类型归一内容并持久化修正：否则 tagCompareNoChange 跳过保存，脏数据无法自愈
+        if (this.normalizeTypedLiteralContent(resItem)) {
+          save = true;
         }
         let paramsType = resItem.type;
         if (paramsType === 'array') {
