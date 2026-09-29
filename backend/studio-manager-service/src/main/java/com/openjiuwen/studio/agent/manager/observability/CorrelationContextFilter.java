@@ -79,15 +79,21 @@ public class CorrelationContextFilter extends OncePerRequestFilter {
             traceId = requestId;
             request.setAttribute(TRACE_ID_ATTRIBUTE, traceId);
         }
-        // 先写响应 Header 再进链：内层任意短路/异常出口都携带同值
-        response.setHeader(REQUEST_ID_HEADER, requestId);
-        response.setHeader(TRACE_ID_HEADER, traceId);
+        // 先包装 response（SUT-01 CD-013：关联 Header add→set，Servlet 边界单值幂等），
+        // 再写 Header 进链：内层任意短路/异常出口都携带同值，且 ControllerAdvice 的
+        // ResponseEntity 经 Spring addHeader 渲染后 wire 仍单行。已是该 wrapper 时复用
+        // （ASYNC/ERROR 再派发同一 response），避免重复嵌套。
+        HttpServletResponse effectiveResponse = response instanceof SingleValueCorrelationResponseWrapper
+            ? response
+            : new SingleValueCorrelationResponseWrapper(response);
+        effectiveResponse.setHeader(REQUEST_ID_HEADER, requestId);
+        effectiveResponse.setHeader(TRACE_ID_HEADER, traceId);
         try (MdcScope scope = MdcScope.open(Map.of(
             MdcKeys.REQUEST_ID, requestId,
             MdcKeys.TRACE_ID, traceId,
             MdcKeys.EXECUTION_ID, "",
             MdcKeys.CONVERSATION_ID, ""))) {
-            filterChain.doFilter(request, response);
+            filterChain.doFilter(request, effectiveResponse);
         }
     }
 }

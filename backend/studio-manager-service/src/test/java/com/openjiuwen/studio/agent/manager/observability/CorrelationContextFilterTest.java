@@ -46,8 +46,11 @@ class CorrelationContextFilterTest {
             for (String key : MdcKeys.orderedKeys()) {
                 mdcAtChain.put(key, MDC.get(key));
             }
+            // SUT-01 CD-013：Filter 现以 SingleValueCorrelationResponseWrapper 包装 response，
+            // res 不再是 MockHttpServletResponse；强转 HttpServletResponse 即可，getHeader 经
+            // wrapper 委托读到 underlying MockHttpServletResponse 的值。
             requestIdHeaderVisibleAtChain =
-                ((org.springframework.mock.web.MockHttpServletResponse) res)
+                ((jakarta.servlet.http.HttpServletResponse) res)
                     .getHeader(CorrelationContextFilter.REQUEST_ID_HEADER);
         }
     }
