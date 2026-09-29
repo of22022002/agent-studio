@@ -737,8 +737,9 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
         typeof item.value.content === 'string' && item.value.content.trim() !== ''
           ? Number(item.value.content)
           : NaN;
-      // integer 类型拒绝非整数值（如 '1.5'/1.5），回退默认 0
-      item.value.content = Number.isInteger(parsed) ? parsed : 0;
+      // 非整数值（如 '1.5'/1.5）就近取整（Math.trunc，对齐运行时 int() 截断语义），
+      // 仅无法转换为数值时回退默认 0
+      item.value.content = Number.isFinite(parsed) ? Math.trunc(parsed) : 0;
       return true;
     }
     return false;
