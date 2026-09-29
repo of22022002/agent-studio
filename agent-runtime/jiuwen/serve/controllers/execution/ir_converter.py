@@ -40,6 +40,9 @@ from jiuwen.extension.patches.loop_body_session_cleanup_patch import (
     apply_loop_body_session_cleanup_patch,
     apply_loop_state_cleanup_patch,
 )
+from jiuwen.extension.patches.global_memory_ref_resolution_patch import (
+    apply_global_memory_ref_resolution_patch,
+)
 from jiuwen.extension.patches.workflow_sub_stream_patch import (
     apply_workflow_sub_stream_patch,
 )
@@ -108,6 +111,7 @@ from pydantic import ValidationError
 apply_workflow_sub_stream_patch()
 apply_loop_body_session_cleanup_patch()
 apply_loop_state_cleanup_patch()
+apply_global_memory_ref_resolution_patch()
 from jiuwen.extension.workflow_node.utils import WorkflowMetadata
 
 from jiuwen.serve.controllers.execution.ir_parallel_utils import (
