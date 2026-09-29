@@ -1095,6 +1095,12 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
   }
 
   handelSave() {
+    // 中间变量表单校验未通过（变量名/字面量值非法）时阻止落库，
+    // 避免用户看到红色错误提示的同时非法输入被静默改写为默认值持久化
+    if (this.midParamForm?.invalid) {
+      this.midParamForm.form.markAllAsTouched();
+      return;
+    }
     if (this.tagCompareNoChange()) {
       return;
     }
