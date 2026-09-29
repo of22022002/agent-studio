@@ -113,31 +113,92 @@ def test_fastapi_unknown_path_returns_canonical_404():
     assert r.json()["error_code"] == "openjiuwen.13100002"
 
 
-def test_prompt_route_reaches_flask_not_fastapi_404():
-    # /v1/prompt/build 经 dispatcher 规范化为 /flask/v1/prompt/build 命中 Flask；
-    # 不应被 FastAPI 当未知路径 404。空 body → Flask 侧 4xx（非 FastAPI canonical 404/405）。
-    r = _client().post("/v1/prompt/build", json={},
-                       headers={"X-Request-Id": "rid-prompt"})
-    assert not (r.status_code == 404 and r.json().get("error_code") == "openjiuwen.13100002"), (
-        f"prompt route should reach Flask, not FastAPI 404; got {r.status_code} {r.text[:120]}")
+def _assert_flask_canonical_400_13100001(r, rid):
+    """正向断言：经 dispatcher 命中 Flask 的 @catch_exception Werkzeug 分支
+    （CD-015）→ 400 + 13100001 + 五字段 + body/header ID 同值。证明：
+    (1) dispatcher 把 /v1/prompt|MMprompt 路由到 Flask（非 FastAPI 404）；
+    (2) B1 Werkzeug 分支在 Flask 侧生效。"""
+    assert r.status_code == 400, f"expected Flask 400, got {r.status_code}: {r.text[:160]}"
+    body = r.json()
+    assert body["error_code"] == "openjiuwen.13100001", body
+    for f in ("error_msg", "error_reason", "error_suggestion", "request_id"):
+        assert body[f], f"{f} non-empty"
+    assert body["request_id"] == rid
+    assert r.headers.get("X-Request-Id") == rid
 
 
-def test_mmapo_route_reaches_flask():
-    # /v1/MMprompt/... 经 dispatcher 规范化命中 Flask mmapo blueprint
-    r = _client().post("/v1/MMprompt/templates_optimization/jobs", json={},
-                       headers={"X-Request-Id": "rid-mmapo"})
-    assert not (r.status_code == 404 and r.json().get("error_code") == "openjiuwen.13100002"), (
-        f"mmapo route should reach Flask, not FastAPI 404; got {r.status_code} {r.text[:120]}")
+def test_prompt_route_reaches_flask_canonical_400():
+    # P1-3: /v1/prompt/build 空 body（application/json）经 dispatcher→Flask，
+    # request.json 触发 Werkzeug BadRequest → @catch_exception → 400+13100001。
+    r = _client().post("/v1/prompt/build", content=b"",
+                       headers={"Content-Type": "application/json", "X-Request-Id": "rid-prompt"})
+    _assert_flask_canonical_400_13100001(r, "rid-prompt")
 
 
-def test_allow_whitelist_no_arbitrary_header_copy():
-    # §6.5: 405 仅透传 Allow，不无条件复制 exc.headers；伪造头不得注入响应。
-    # 用 FastAPI 路径错误 method 触发 405（Starlette HTTPException 带 headers）。
-    r = _client().delete("/v1/health", headers={"X-Request-Id": "rid-allow"})
-    assert r.status_code == 405
-    assert "Allow" in r.headers
-    # X-Request-Id 不被 Allow 逻辑覆盖
-    assert r.headers.get("X-Request-Id") == "rid-allow"
+def test_mmapo_route_reaches_flask_canonical_400():
+    # P1-3: /v1/MMprompt/... 同理命中 Flask mmapo blueprint
+    r = _client().post("/v1/MMprompt/templates_optimization/jobs", content=b"",
+                       headers={"Content-Type": "application/json", "X-Request-Id": "rid-mmapo"})
+    _assert_flask_canonical_400_13100001(r, "rid-mmapo")
+
+
+def test_explicit_flask_prefix_compat_path_reaches_flask():
+    # P2-3: 显式 /flask/v1/prompt/... 兼容路径经 dispatcher rule 3 原样交 WSGI
+    r = _client().post("/flask/v1/prompt/build", content=b"",
+                       headers={"Content-Type": "application/json", "X-Request-Id": "rid-flask-explicit"})
+    _assert_flask_canonical_400_13100001(r, "rid-flask-explicit")
+
+
+def test_dynamic_context_established_before_dispatch_on_flask_path():
+    # P2-3 动态探针：Flask 路径响应带外层 establish 写入的 X-Request-Id（单值），
+    # 证明 establish_inbound_context 在 dispatcher 外层先建立 ID、再分派到 Flask，
+    # 且 write_x_request_id 在响应回写。结构顺序（test_middleware_order_...）+ 此动态证据。
+    r = _client().post("/v1/prompt/build", content=b"",
+                       headers={"Content-Type": "application/json", "X-Request-Id": "rid-dynamic"})
+    assert r.headers.get_list("X-Request-Id") == ["rid-dynamic"]
+    assert r.json()["request_id"] == "rid-dynamic"
+
+
+def test_url_encoded_path_dispatches_correctly():
+    # P2-3: URL 编码路径经 dispatcher 一次解码正确分派，不双重解码/误路由。
+    # /v1/prompt/build（含编码的 %62 = 'b'）应与 /v1/prompt/build 等价命中 Flask。
+    r = _client().post("/v1/prompt/%62uild", content=b"",
+                       headers={"Content-Type": "application/json", "X-Request-Id": "rid-enc"})
+    assert r.status_code == 400
+    assert r.json()["error_code"] == "openjiuwen.13100001"
+
+
+def test_allow_whitelist_only_copies_allow_not_arbitrary_headers():
+    # P2-1 反证：构造带 Allow + 伪造 X-Evil + 伪造 X-Request-Id 的 StarletteHTTPException(405)，
+    # 直接单测 _apply_allow_header_if_405——只补 Allow，不注入 X-Evil，不覆盖外层 X-Request-Id。
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+    from starlette.responses import JSONResponse
+    from agent_builder.serve.server_fastapi import _apply_allow_header_if_405
+
+    forged = StarletteHTTPException(
+        status_code=405,
+        headers={"Allow": "GET, HEAD", "X-Evil": "inject-me", "X-Request-Id": "forged-rid"},
+    )
+    # 外层已建立的响应（X-Request-Id 由 establish 写入）
+    resp = JSONResponse(content={"error_code": "openjiuwen.13100003"}, headers={"X-Request-Id": "real-rid"})
+    _apply_allow_header_if_405(resp, forged)
+
+    lower = {k.lower(): v for k, v in resp.headers.items()}
+    assert lower.get("allow") == "GET, HEAD"          # Allow 透传
+    assert "x-evil" not in lower, "forged X-Evil must NOT be copied"  # 白名单挡住
+    assert lower.get("x-request-id") == "real-rid", "forged X-Request-Id must NOT overwrite outer"  # 关联 ID 不被覆盖
+
+
+def test_allow_whitelist_not_applied_on_non_405():
+    # P2-1: 非 405（如 404）即使 exc.headers 含 Allow 也不补
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+    from starlette.responses import JSONResponse
+    from agent_builder.serve.server_fastapi import _apply_allow_header_if_405
+
+    exc404 = StarletteHTTPException(status_code=404, headers={"Allow": "GET"})
+    resp = JSONResponse(content={})
+    _apply_allow_header_if_405(resp, exc404)
+    assert "allow" not in {k.lower() for k in resp.headers}
 
 
 def test_correlation_header_single_value_on_fastapi_path():
@@ -145,7 +206,29 @@ def test_correlation_header_single_value_on_fastapi_path():
     assert r.headers.get_list("X-Request-Id") == ["rid-single"]
 
 
-def test_query_string_preserved_through_dispatch():
-    r = _client().get("/v1/health?foo=bar&baz=qux", headers={"X-Request-Id": "rid-q"})
+def test_query_string_preserved_on_fastapi_path():
+    # P2-2: FastAPI 路径 query 基线（/v1/health 直交 FastAPI router）
+    r = _client().get("/v1/health?foo=bar&baz=qux", headers={"X-Request-Id": "rid-q-fastapi"})
     assert r.status_code == 200
+
+
+def test_query_string_preserved_on_flask_path():
+    # P2-2: Flask 路径 query 经 dispatcher→Flask，query_string 在 child scope 保留
+    r = _client().post("/v1/prompt/build?foo=bar", content=b"",
+                       headers={"Content-Type": "application/json", "X-Request-Id": "rid-q-flask"})
+    _assert_flask_canonical_400_13100001(r, "rid-q-flask")
+
+
+def test_direct_flask_blueprint_unchanged():
+    # P2-3: B2 只改 server_fastapi（mounted 模式），未碰 server.py direct / agent_builder.app。
+    # 结构证明：direct Flask app 仍持有 prompt/mmapo blueprint @ /flask 前缀（未丢路由）。
+    # 注：direct Flask 的 test_client 运行时会触发 server.py:192 的 ContextVar 双重 reset
+    # （既有问题，非 B2 引入——B2 未碰 server.py），故用 url_map 结构证明而非 runtime 请求。
+    from agent_builder.app import app as direct_flask_app
+    rules = {r.rule for r in direct_flask_app.url_map.iter_rules()}
+    assert any(r.startswith("/flask/v1/prompt/") for r in rules), \
+        "direct Flask prompt blueprint @ /flask missing"
+    assert any(r.startswith("/flask/v1/MMprompt/") for r in rules), \
+        "direct Flask mmapo blueprint @ /flask missing"
+
 

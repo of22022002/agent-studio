@@ -171,6 +171,22 @@ async def lifespan(app: FastAPI):  # noqa: redefined-outer-name
         logger.info("agent_builder shutdown")
 
 
+def _apply_allow_header_if_405(response, exc):
+    """SUT-01 CD-018 (B2) §6.5：405 时按白名单补回 exc.headers 中的 Allow。
+
+    build_json_response 只产出 X-Request-Id，不保留 exc.headers 的 Allow；405 必须带
+    Allow（RFC 9110 + §3.2）。本 helper 仅在 status==405、仅 Allow、替换语义补回，
+    不无条件复制其他异常 Header（如伪造 X-Evil / X-Request-Id），不覆盖已写的
+    X-Request-Id / Content-Type 等响应元数据。抽为模块级以便白名单反证单测。
+    """
+    if getattr(exc, "status_code", None) == 405 and getattr(exc, "headers", None):
+        for k, v in exc.headers.items():
+            if k.lower() == "allow":
+                response.headers["Allow"] = v
+                break
+    return response
+
+
 def instance_app() -> FastAPI:
     """Build the agent_builder FastAPI server."""
     app = FastAPI(
@@ -318,16 +334,8 @@ def instance_app() -> FastAPI:
         language = request.headers.get("x-language", "zh-cn") if request else "zh-cn"
         descriptor = error_factory.from_http_exception(exc, request_id or None)
         response = error_factory.build_json_response(descriptor, language)
-        # SUT-01 CD-018 (B2): build_json_response 只产出 X-Request-Id，不保留
-        # exc.headers 中的 Allow。405 必须带 Allow（RFC 9110 + §3.2）。按白名单补回
-        # ——仅 405、仅 Allow、替换语义，不覆盖 X-Request-Id/Content-Type 等响应元数据，
-        # 不无条件复制 exc.headers（§6.5 第 494-502 点）。
-        if exc.status_code == 405 and exc.headers:
-            for k, v in exc.headers.items():
-                if k.lower() == "allow":
-                    response.headers["Allow"] = v
-                    break
-        return response
+        # SUT-01 CD-018 (B2) §6.5：405 补 Allow（白名单，见 _apply_allow_header_if_405）
+        return _apply_allow_header_if_405(response, exc)
 
     @app.exception_handler(Exception)
     async def generic_error_handler(request: Request, exc: Exception):
