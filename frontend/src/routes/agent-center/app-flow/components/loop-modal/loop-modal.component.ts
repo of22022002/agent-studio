@@ -607,14 +607,23 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
     this.updateConditionOps();
   }
 
+  /** literal 中间变量是否已填写：显式判空，0/false 是合法值不能用真值判断 */
+  private isLiteralFilled(param: IWorkflowField): boolean {
+    return param.value.content !== '' && param.value.content != null;
+  }
+
+  /** ref 中间变量是否已选择引用 */
+  private isRefFilled(param: IWorkflowField): boolean {
+    return (
+      Array.isArray(param.value.content) && param.value.content.length > 0
+    );
+  }
+
   onMidRefChange(init?: boolean) {
     const newMidRefs: IParamRef[] = [];
     this.midParams.forEach((param) => {
-      if (
-        (param.name && param.value.type === 'literal' && param.value.content) ||
-        (param.value.type === 'ref' &&
-          (param.value.content as IParamRef[]).length)
-      ) {
+      // 注意：integer 0 / boolean false 是合法字面量，禁止真值判断
+      if ((param.name && this.isLiteralFilled(param)) || this.isRefFilled(param)) {
         const paramCopy = cloneDeep(param);
 
         let willPush: Partial<IParamRef> = {
@@ -694,6 +703,24 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
     );
   }
 
+  /**
+   * 中间变量数据类型切换：字面量内容重置为新类型默认值，
+   * 避免旧类型内容（如字符串文本）随 boolean/integer 类型一起保存，
+   * 破坏 intermediate_loop_var schema 的类型一致性。
+   */
+  public onMidParamDataTypeChange(row: IWorkflowField) {
+    if (row.value.type === 'literal') {
+      if (row.type === 'boolean') {
+        row.value.content = false;
+      } else if (row.type === 'integer' || row.type === 'number') {
+        row.value.content = 0;
+      } else {
+        row.value.content = '';
+      }
+    }
+    this.onMidRefChange();
+  }
+
   onMidParamTypeChange(row: IWorkflowField) {
     this.onParamTypeChange(row);
     if (row.value.type === 'literal' && !this.isValidLiteralDataType(row.type)) {
@@ -749,6 +776,14 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
         if (this.isNumericStringLiteral(resItem)) {
           const parsed = Number(resItem.value.content);
           resItem.value.content = Number.isNaN(parsed) ? null : parsed;
+        }
+        // boolean 类型内容非法（历史污染/空值）时回退 false
+        if (
+          resItem?.value?.type === 'literal' &&
+          resItem.type === 'boolean' &&
+          typeof resItem.value.content !== 'boolean'
+        ) {
+          resItem.value.content = false;
         }
         let paramsType = resItem.type;
         if (paramsType === 'array') {
