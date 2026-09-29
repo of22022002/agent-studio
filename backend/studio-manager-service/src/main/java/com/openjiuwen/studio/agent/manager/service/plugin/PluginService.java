@@ -529,6 +529,8 @@ public class PluginService implements IPluginService {
             resource.setFilename("plugins.jsonl");
             resource.setLength((long) bytes.length);
             return resource;
+        } catch (AgentStudioException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Failed to export the plug-in.", e);
             throw new AgentStudioException(StudioError.TOOL_EXPORT_FILE);
@@ -735,6 +737,8 @@ public class PluginService implements IPluginService {
                 }
             }
             buildImportRsp(importRsp, wfImportDataWrapper);
+        } catch (AgentStudioException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Failed to import the plug-in.", e);
             throw new AgentStudioException(StudioError.TOOL_IMPORT_FILE);

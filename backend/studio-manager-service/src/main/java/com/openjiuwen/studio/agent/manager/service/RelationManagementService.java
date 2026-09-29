@@ -2291,6 +2291,8 @@ public class RelationManagementService implements IRelationManagementService {
 
             return relationList;
 
+        } catch (AgentStudioException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Error occurred in listResourceRelations method. Parameters: projectId={}, resourceId={}, listResourceRelationsQo={}",
                     projectId, resourceId, listResourceRelationsQo, e);

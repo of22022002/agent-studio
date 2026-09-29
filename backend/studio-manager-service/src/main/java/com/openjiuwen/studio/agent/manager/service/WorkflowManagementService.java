@@ -871,7 +871,7 @@ public class WorkflowManagementService implements IWorkflowManagementService {
             return new WorkflowValidationVO().setSuccess(false);
         }
         if (version != null && !Objects.equals(version, workflowEntity.getUpdatedAt())) {
-            throw new AgentStudioException(StudioError.WORKFLOW_VALIDATE_VERSION_ERROR);
+            throw new AgentStudioException(StudioError.WORKFLOW_VERSION_NOT_MATCH);
         }
         // 从OBS中下载EI工作流配置
         String workflowInfo = obsService.downloadObsFile(workflowEntity.getDslPath());

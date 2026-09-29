@@ -754,7 +754,7 @@ async def _load_ir_json(ir_path: str) -> dict:
 @execution_app.delete("/v1/orchestration/ir/execute", summary="删除执行实例")
 async def delete_ir_execution_instance(req: DeleteExecutionInstanceRequest):
     """
-    Restful API for delete Agent instance and Workflow instance by executionId.
+    Restful API for delete Agent instance and Workflow instance by conversationId.
     """
     try:
         await AsyncStateManager().delete_state(key=req.conversation_id)
