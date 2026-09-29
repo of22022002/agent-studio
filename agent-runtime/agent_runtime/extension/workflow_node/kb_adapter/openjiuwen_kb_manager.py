@@ -404,11 +404,12 @@ class OpenJiuwenKBManager:
 
         kb = self._kb_cache.get(kb_id)
         if kb is not None:
-            try:
-                await kb.delete_documents(doc_ids)
-            except Exception as e:
-                logger.warning("Failed to delete documents from cached KB '%s': %s", kb_id, e)
-                failed_ids = list(doc_ids)
+            for doc_id in doc_ids:
+                try:
+                    await kb.delete_documents([doc_id])
+                except Exception as e:
+                    logger.warning("Failed to delete doc '%s' from cached KB '%s': %s", doc_id, kb_id, e)
+                    failed_ids.append(doc_id)
         else:
             try:
                 vs_config = self._build_vector_store_config(kb_id)

@@ -123,6 +123,9 @@ public class ManagerErrorDescriptorFactory {
         }
         String code = foundationErrorCode.getCode();
         int httpStatus = foundationErrorCode.getHttpCode();
+        if (httpStatus < 400 || httpStatus > 599) {
+            httpStatus = 500;
+        }
         return new ErrorDescriptor(
             code, httpStatus,
             code, code + ".reason", code + ".suggestion",

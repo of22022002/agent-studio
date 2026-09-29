@@ -817,9 +817,9 @@ async def _execute_agent_run(
     # 从IR中确定handler_type
     try:
         handler_type = await _resolve_handler_type(ir_path)
-    except AgentBuilderError:
-        raise
     except Exception as e:
+        if isinstance(e, AgentBuilderError):
+            raise
         workflow_logger.error(f"Failed to resolve handler type from IR: {ir_path}, error: {e}")
         raise JiuWenBaseException(
             error_code=StatusCode.IR_DATA_JSON_LOAD_FAILED.code,

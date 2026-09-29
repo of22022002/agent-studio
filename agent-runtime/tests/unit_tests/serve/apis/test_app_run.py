@@ -64,6 +64,7 @@ from agent_runtime.serve.apis.app_run import (
 from agent_runtime.serve.apis.app_run_request import (
     WorkflowAppRunRequest,
     AgentAppRunRequest,
+    AgentRunContext,
     ExecutionContext,
     NodeRunContext,
     NodeExecuteRequest,
@@ -404,9 +405,6 @@ class TestExecuteAgentRunAgentBuilderErrorPropagation:
             mock_request_ctx.user_id = "user-1"
             mock_ctx.get.return_value = mock_request_ctx
 
-            from agent_runtime.serve.apis.app_run_request import (
-                AgentAppRunRequest, AgentRunContext,
-            )
             body = AgentAppRunRequest(query="test")
             ctx = AgentRunContext(
                 project_id="proj-1",
