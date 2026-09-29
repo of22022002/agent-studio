@@ -481,12 +481,7 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
       // 保证 intermediate_loop_var schema 中类型声明与值类型一致
       const midParamsForDto = this.midParams.map((param) => {
         const copy = cloneDeep(param);
-        if (
-          copy.value.type === 'literal' &&
-          (copy.type === 'integer' || copy.type === 'number') &&
-          typeof copy.value.content === 'string' &&
-          copy.value.content !== ''
-        ) {
+        if (this.isNumericStringLiteral(copy)) {
           const parsed = Number(copy.value.content);
           if (!Number.isNaN(parsed)) {
             copy.value.content = parsed;
@@ -676,6 +671,20 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
   }
 
   /**
+   * literal 来源且类型为 integer/number、内容为非空字符串——
+   * 需要在序列化/读取时做数值化转换的场景。
+   */
+  private isNumericStringLiteral(item: IWorkflowField): boolean {
+    if (item?.value?.type !== 'literal') {
+      return false;
+    }
+    if (item.type !== 'integer' && item.type !== 'number') {
+      return false;
+    }
+    return typeof item.value.content === 'string' && item.value.content !== '';
+  }
+
+  /**
    * literal 来源允许的数据类型（noneObjDataTypes 中未禁用的项）。
    * ref 同步来的 object/array<...> 等复合类型对 literal 非法，需回退 string。
    */
@@ -737,12 +746,7 @@ export class LoopModalComponent extends ModalBaseComponent implements OnInit {
           resItem.type = 'string';
         }
         // 数值类型的字符串内容读取时转为数值（对齐 getNumLoopVar 的清洗逻辑）
-        if (
-          resItem?.value?.type === 'literal' &&
-          (resItem.type === 'integer' || resItem.type === 'number') &&
-          typeof resItem.value.content === 'string' &&
-          resItem.value.content !== ''
-        ) {
+        if (this.isNumericStringLiteral(resItem)) {
           const parsed = Number(resItem.value.content);
           resItem.value.content = Number.isNaN(parsed) ? null : parsed;
         }
