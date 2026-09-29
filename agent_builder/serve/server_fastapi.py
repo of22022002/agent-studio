@@ -19,6 +19,7 @@ from flask import Flask
 from starlette.middleware.wsgi import WSGIMiddleware
 
 from agent_builder.adapter.exception_bridge import JiuWenBaseException
+from agent_builder.serve.common.flask_route_dispatch import FlaskRouteDispatchMiddleware
 
 # Single Flask app (already has prompt.manager + mmapo.manager blueprints
 # registered via ServerApp in agent_builder/serve/server.py).
@@ -170,11 +171,34 @@ async def lifespan(app: FastAPI):  # noqa: redefined-outer-name
         logger.info("agent_builder shutdown")
 
 
+def _apply_allow_header_if_405(response, exc):
+    """SUT-01 CD-018 (B2) §6.5：405 时按白名单补回 exc.headers 中的 Allow。
+
+    build_json_response 只产出 X-Request-Id，不保留 exc.headers 的 Allow；405 必须带
+    Allow（RFC 9110 + §3.2）。本 helper 仅在 status==405、仅 Allow、替换语义补回，
+    不无条件复制其他异常 Header（如伪造 X-Evil / X-Request-Id），不覆盖已写的
+    X-Request-Id / Content-Type 等响应元数据。抽为模块级以便白名单反证单测。
+    """
+    if getattr(exc, "status_code", None) == 405 and getattr(exc, "headers", None):
+        for k, v in exc.headers.items():
+            if k.lower() == "allow":
+                response.headers["Allow"] = v
+                break
+    return response
+
+
 def instance_app() -> FastAPI:
     """Build the agent_builder FastAPI server."""
     app = FastAPI(
         lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None
     )
+
+    # SUT-01 CD-018 (B2): 先注册 dispatcher（内层用户 middleware），后注册
+    # establish_inbound_context（外层）。Starlette LIFO：后注册者在外层包装，
+    # 故 establish 在 dispatcher 外层，先建立 ID 再分派；dispatcher 不读/不生成 ID。
+    # 禁止在保留 establish 为 @app.middleware 后再 add_middleware(dispatcher)——
+    # 那样 dispatcher 会跑到 establish 外层，与目标序相反（§6.4 第 4 点）。
+    app.add_middleware(FlaskRouteDispatchMiddleware, flask_app=prompt_manage_app)
 
     @app.middleware("http")
     async def establish_inbound_context(request: Request, call_next):
@@ -248,22 +272,15 @@ def instance_app() -> FastAPI:
             finally:
                 _request_ctx.reset(request_token)
 
-    # Flask 路径规范化中间件：OptimizationTemplateService 调用 /v1/prompt/...
-    # 而 Flask blueprint 注册了 url_prefix="/flask"，需要统一补上前缀
-    @app.middleware("http")
-    async def normalize_flask_path(request: Request, call_next):
-        path = request.url.path
-        if path.startswith("/v1/prompt/") and not path.startswith("/flask"):
-            prefixed = f"/flask{path}"
-            request = Request(request.scope, request.receive)
-            request.scope["path"] = prefixed
-        return await call_next(request)
-
+    # SUT-01 CD-018 (B2): 独立 normalize_flask_path 已并入 FlaskRouteDispatchMiddleware
+    # （normalize_registered_flask_path 覆盖 /v1/prompt + /v1/MMprompt），删除避免
+    # 两处分别改 path。根路径 app.mount("/", WSGIMiddleware(flask)) catch-all 已移除
+    # ——Flask app 由 dispatcher 持有并按前缀分派，不再 catch-all 抢占 FastAPI method
+    # 不匹配分派（DELETE /v1/health 404→405、FastAPI OPTIONS 404→405）。
     for i in apps_map:
         if isinstance(i, Flask):
-            app.mount("/", WSGIMiddleware(i))
-        else:
-            app.include_router(i)
+            continue  # Flask app 由 FlaskRouteDispatchMiddleware 持有，不再 mount("/")
+        app.include_router(i)
 
     from agent_builder.common.error_contract import factory as error_factory
 
@@ -316,7 +333,9 @@ def instance_app() -> FastAPI:
         )
         language = request.headers.get("x-language", "zh-cn") if request else "zh-cn"
         descriptor = error_factory.from_http_exception(exc, request_id or None)
-        return error_factory.build_json_response(descriptor, language)
+        response = error_factory.build_json_response(descriptor, language)
+        # SUT-01 CD-018 (B2) §6.5：405 补 Allow（白名单，见 _apply_allow_header_if_405）
+        return _apply_allow_header_if_405(response, exc)
 
     @app.exception_handler(Exception)
     async def generic_error_handler(request: Request, exc: Exception):

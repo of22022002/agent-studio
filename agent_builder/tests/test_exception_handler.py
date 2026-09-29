@@ -49,6 +49,14 @@ def _build_app():
     def _dec_legacy(code):
         raise JiuWenBaseException(error_code=code, message=f"legacy {code} detail")
 
+    # --- 装饰器路由：读 request.json 触发 Werkzeug HTTPException（SUT-01 CD-015）---
+    @app.route("/dec/json", methods=["POST"])
+    @ExceptionHandler.catch_exception
+    def _dec_json():
+        from flask import request
+        _ = request.json  # 空 body/malformed JSON/不支持 Content-Type → Werkzeug 4xx
+        return "ok"
+
     # --- 未装饰路由（走全局 errorhandler）---
     @app.route("/glob/biz", methods=["GET"])
     def _glob_biz():
@@ -266,3 +274,96 @@ def test_global_unknown_logs_exactly_one_stack(client, caplog):
         f"global unknown exception should log exactly one ERROR stack, "
         f"got {len(stacks)}"
     )
+
+
+# ------------------- SUT-01 CD-015: Werkzeug HTTPException 分类 -------------------
+
+
+def _five_fields(body):
+    for f in ("error_code", "error_msg", "error_reason", "error_suggestion", "request_id"):
+        assert body.get(f), f"{f} non-empty"
+
+
+def test_decorator_werkzeug_empty_json_body_400(client):
+    """application/json + 空 body → Werkzeug BadRequest 400，不再被放大为 500。"""
+    resp = client.post(
+        "/dec/json",
+        data="",
+        content_type="application/json",
+        headers={"X-Request-Id": "rid-werk-empty"},
+    )
+    assert resp.status_code == 400
+    body = _body(resp)
+    assert body["error_code"] == "openjiuwen.13100001"
+    assert body["request_id"] == "rid-werk-empty"
+    assert resp.headers.get("X-Request-Id") == "rid-werk-empty"
+    _five_fields(body)
+
+
+def test_decorator_werkzeug_malformed_json_400(client):
+    """malformed JSON → Werkzeug BadRequest 400，不回显 parser 文本。"""
+    resp = client.post(
+        "/dec/json",
+        data="{'not json",
+        content_type="application/json",
+        headers={"X-Request-Id": "rid-werk-malformed"},
+    )
+    assert resp.status_code == 400
+    body = _body(resp)
+    assert body["error_code"] == "openjiuwen.13100001"
+    _five_fields(body)
+    # Werkzeug exc.description 含解析器文本，不得进对外响应
+    assert "Expecting" not in resp.data.decode()
+    assert "not json" not in resp.data.decode()
+
+
+def test_decorator_werkzeug_unsupported_media_type_415(client):
+    """缺 JSON Content-Type 且路由读 request.json → Werkzeug 415，保留原状态。"""
+    resp = client.post(
+        "/dec/json",
+        data="plain",
+        content_type="text/plain",
+        headers={"X-Request-Id": "rid-werk-415"},
+    )
+    assert resp.status_code == 415
+    body = _body(resp)
+    assert body["error_code"] == "openjiuwen.13100001"
+    assert body["request_id"] == "rid-werk-415"
+    _five_fields(body)
+
+
+def test_decorator_werkzeug_preserves_priority_and_unknown(client):
+    """Werkzeug 分支插在 JiuWenBaseException 后、Exception 前：业务异常与未知异常路径无回归。"""
+    # 已登记业务异常仍走 from_builder_exception
+    biz = client.get("/dec/reg", headers={"X-Request-Id": "rid-prio-biz"})
+    assert _body(biz)["error_code"] == "openjiuwen.13100007"
+    # 未知异常仍 13100004/500
+    unk = client.get("/dec/unknown", headers={"X-Request-Id": "rid-prio-unk"})
+    assert unk.status_code == 500
+    assert _body(unk)["error_code"] == "openjiuwen.13100004"
+
+
+def test_werkzeug_objects_from_code_no_attribute_error():
+    """§5.3: 真实 Werkzeug 对象从 .code 取 400/415。
+
+    不得出现 AttributeError: status_code（即不得误用 Starlette from_http_exception）。
+    """
+    from werkzeug.exceptions import BadRequest, UnsupportedMediaType
+
+    from agent_builder.common.error_contract import factory as error_factory
+
+    # 修复路径：from_http_status(exc.code or 500, ...) 显式取 int，不读 .status_code
+    d400 = error_factory.from_http_status(
+        BadRequest().code or 500, "rid-werk-obj-400", BadRequest())
+    assert d400.error_code == "openjiuwen.13100001"
+    assert d400.http_status == 400
+
+    d415 = error_factory.from_http_status(
+        UnsupportedMediaType().code or 500, "rid-werk-obj-415", UnsupportedMediaType())
+    assert d415.error_code == "openjiuwen.13100001"
+    assert d415.http_status == 415
+
+    # 反证：from_http_exception 是 Starlette 型、读 .status_code，Werkzeug 无此属性 → AttributeError
+    # 这正是 §5.2 必须用 from_http_status(exc.code or 500) 而非 from_http_exception 的原因
+    with pytest.raises(AttributeError):
+        error_factory.from_http_exception(BadRequest(), "rid-werk-obj-x")

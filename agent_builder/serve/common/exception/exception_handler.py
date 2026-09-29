@@ -23,11 +23,13 @@ SYNC-01 P5-R3b（2026-09-22）：旧分支 COM-03 此装饰器已改五字段 + 
 from functools import wraps, partial
 from typing import Type
 
+from pydantic import ValidationError
+from werkzeug.exceptions import HTTPException as WerkzeugHTTPException
+
 from agent_builder.adapter.exception_bridge import JiuWenBaseException
 from agent_builder.adapter.request_context_bridge import get_request_id
 from agent_builder.common.error_contract import factory as error_factory
 from agent_builder.common.logging.base import logger
-from pydantic import ValidationError
 
 
 def _current_language() -> str:
@@ -64,6 +66,18 @@ class ExceptionHandler:
                     exc_info=True,
                 )
                 descriptor = error_factory.from_builder_exception(e, get_request_id() or None)
+                return error_factory.build_flask_error(descriptor, _current_language())
+            except WerkzeugHTTPException as exc:
+                # SUT-01 CD-015：Werkzeug 框架异常（空 body/malformed JSON/不支持 Content-Type
+                # 等 request.json 解析 4xx）原被 except Exception→from_internal 放大为 500。
+                # 用 from_http_status(exc.code or 500, ...) 显式取 int，绕开 Starlette
+                # from_http_exception 读 .status_code 的协议差异（Werkzeug 用 .code），
+                # 4xx→13100001 保原状态、404→13100002、405→13100003，不回显 exc.description。
+                descriptor = error_factory.from_http_status(
+                    exc.code or 500,
+                    get_request_id() or None,
+                    exc,
+                )
                 return error_factory.build_flask_error(descriptor, _current_language())
             except Exception as e:
                 logger.error("Unhandled Flask exception", exc_info=True)

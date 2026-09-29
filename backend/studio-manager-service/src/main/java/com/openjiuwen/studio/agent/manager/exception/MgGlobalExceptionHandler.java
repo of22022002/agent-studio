@@ -368,7 +368,8 @@ public class MgGlobalExceptionHandler {
             .setErrorCode(StudioError.METHOD_NOT_SUPPORTED.getFullCode())
             .setErrorMsg(errorInfo.getMessage())
             .setErrorReason(errorInfo.getReason())
-            .setErrorSuggestion(errorInfo.getSuggestion());
+            .setErrorSuggestion(errorInfo.getSuggestion())
+            .setRequestId(currentRequestId()); // SUT-01 CD-005：补齐必填 request_id
         // 透传 Spring 生成的 Allow 响应头（RFC 9110 要求 405 响应携带）
         return new ResponseEntity<>(errorRsp, exception.getHeaders(),
             StudioError.METHOD_NOT_SUPPORTED.getHttpStatus());
@@ -394,7 +395,8 @@ public class MgGlobalExceptionHandler {
             .setErrorMsg(errMessage)
             .setErrorReason(i18nUtil.getMessage(errorInfo))
             .setErrorSuggestion(i18nUtil.getSuggestion(errorInfo))
-            .setDetails(details);
+            .setDetails(details)
+            .setRequestId(currentRequestId()); // SUT-01 CD-005：补齐必填 request_id
         return new ResponseEntity<>(errorRsp, errorInfo.getHttpStatus());
     }
 
@@ -485,7 +487,8 @@ public class MgGlobalExceptionHandler {
             .setErrorCode(code.getFullCode())
             .setErrorMsg(i18nUtil.getMessage(code))
             .setErrorReason(reason)
-            .setErrorSuggestion(i18nUtil.getSuggestion(code));
+            .setErrorSuggestion(i18nUtil.getSuggestion(code))
+            .setRequestId(currentRequestId()); // SUT-01 CD-005：补齐必填 request_id
         return new ResponseEntity<>(rsp, code.getHttpStatus());
     }
 }
