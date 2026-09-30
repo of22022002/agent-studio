@@ -18,10 +18,10 @@ Set the environment variable in the `.env` file:
 STUDIO_OPERATION_LOG_SWITCH=true
 ```
 
-Then restart the service:
+Then recreate the service (restart only restarts containers without re-reading environment variables; use recreate to rebuild):
 
 ```bash
-bash deploy.sh restart
+bash deploy.sh recreate
 ```
 
 ### 2.2 Direct Deployment (Non-Docker)
@@ -40,7 +40,7 @@ Or set via environment variable:
 export studio_operationLog_switch=true
 ```
 
-> Once enabled, it takes effect immediately without restart. All Service method calls annotated with `@OperationLog` will be recorded.
+> Restart the service for changes to take effect (`@Value` is bound at startup; modifying environment variables at runtime will not take effect immediately). All Service method calls annotated with `@OperationLog` will be recorded.
 
 ---
 
@@ -54,8 +54,10 @@ export studio_operationLog_switch=true
 For Docker Compose deployment, check the volume mapping path with:
 
 ```bash
-docker volume inspect agent-studio_manager_logs
+docker volume ls | grep manager_logs
 ```
+
+After confirming the actual volume name, use `docker volume inspect <volume_name>` to view the mapping path. The volume name prefix depends on the deployment directory name (e.g., `agent-studio_manager_logs` or `<directory_name>_manager_logs`).
 
 ---
 

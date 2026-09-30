@@ -18,10 +18,10 @@ openJiuwen AgentStudio 内置审计日志功能，自动记录用户对关键资
 STUDIO_OPERATION_LOG_SWITCH=true
 ```
 
-然后重启服务：
+然后重建服务（restart 仅重启容器不会重读环境变量，需用 recreate 重建）：
 
 ```bash
-bash deploy.sh restart
+bash deploy.sh recreate
 ```
 
 ### 2.2 直接部署（非 Docker）
@@ -40,7 +40,7 @@ studio:
 export studio_operationLog_switch=true
 ```
 
-> 开启后立即生效，无需重启。所有带有 `@OperationLog` 注解的 Service 方法调用都会被记录。
+> 需重启服务后生效（`@Value` 在启动时绑定，运行中修改环境变量不会立即生效）。所有带有 `@OperationLog` 注解的 Service 方法调用都会被记录。
 
 ---
 
@@ -54,8 +54,10 @@ export studio_operationLog_switch=true
 Docker Compose 部署时，可通过以下命令查看数据卷映射路径：
 
 ```bash
-docker volume inspect agent-studio_manager_logs
+docker volume ls | grep manager_logs
 ```
+
+确认实际卷名后，使用 `docker volume inspect <卷名>` 查看映射路径。卷名前缀取决于部署目录名（如 `agent-studio_manager_logs` 或 `<目录名>_manager_logs`）。
 
 ---
 
