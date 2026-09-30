@@ -191,9 +191,9 @@ public class DatasourceManagementService implements IDatasourceManagementService
         if (StringUtils.isBlank(keyword)) {
             return keyword;
         }
-        return keyword.replace("\\", "\\\\")
-            .replace("%", "\\%")
-            .replace("_", "\\_");
+        return keyword.replace("/", "//")
+            .replace("%", "/%")
+            .replace("_", "/_");
     }
 
     public DatasourceInfoRsp retrieveDatasource(String projectId, String workspaceId, String datasourceId) {
