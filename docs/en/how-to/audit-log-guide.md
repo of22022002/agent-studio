@@ -120,24 +120,35 @@ Each audit log entry is a single line of JSON with the following structure:
 
 ## 5. Audit Coverage
 
-Audit logs cover key operations in the following Services (145 audit points total):
+Audit logs cover key operations in the following Services (145 audit points total, 26 Services):
 
 | Service | Audit Points | Covered Operations |
 |---------|-------------|-------------------|
 | `AgentManagementService` | 17 | Create/update/delete/publish/copy agents, etc. |
 | `WorkflowManagementService` | 17 | Create/update/delete/publish workflows, etc. |
-| `PluginService` | 13 | Create/delete/modify/import/export/publish plugins and tools |
+| `PluginService` | 13 | Create/delete/modify/import/export/publish plugins |
+| `ToolManagementService` | 10 | Tool create/update/delete/publish, etc. |
+| `KnowledgeBaseServiceImpl` | 9 | Knowledge base create/update/delete, etc. |
 | `ComplexIntentManagementService` | 9 | CRUD for complex intents |
 | `EnvironmentServiceManagerService` | 7 | Environment service management |
 | `KnowledgeBaseDatasetServiceImpl` | 7 | Knowledge base dataset CRUD |
-| `McpServiceManager` | 6 | MCP service create/deploy/delete, etc. |
 | `ModelServiceMgmtService` | 6 | Model service management |
+| `McpServiceManager` | 6 | MCP service create/deploy/delete, etc. |
+| `ShareResourceManagerService` | 5 | Resource sharing management |
 | `ProviderMgmtService` | 4 | Model provider management |
-| `ProviderAuthMgmtService` | 3 | Provider authentication management |
+| `ProviderAuthService` | 4 | Provider authentication management |
+| `MessageManagementService` | 4 | Message template/intent package/object management |
 | `WorkspaceService` | 3 | Workspace CRUD |
-| `MemoryRepoManagementService` | 3 | Memory repository management |
+| `WorkspaceMemberService` | 3 | Workspace member management |
+| `RouterStrategyMgmtService` | 3 | Routing strategy management |
+| `ProviderAuthMgmtService` | 3 | Provider auth info management |
 | `MemoryServiceInstanceService` | 3 | Memory service instance management |
-| `RouterStrategyMgmtService` | 1 | Routing strategy management |
+| `MemoryRepoManagementService` | 3 | Memory repository management |
+| `CustomObjectManagementService` | 3 | Custom object management |
+| `SkillManagementService` | 2 | Skill management |
+| `McpInnerService` | 1 | MCP internal service operations |
+| `CommonManagementService` | 1 | Common management operations |
+| `AppManagementService` | 1 | App management |
 | `AgentServiceProxyService` | 1 | Agent service proxy operations |
 
 ---

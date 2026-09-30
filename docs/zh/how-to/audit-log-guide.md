@@ -120,24 +120,35 @@ docker volume inspect agent-studio_manager_logs
 
 ## 五、审计覆盖范围
 
-审计日志覆盖以下 Service 的关键操作（共 145 个审计点）：
+审计日志覆盖以下 Service 的关键操作（共 145 个审计点，26 个 Service）：
 
 | Service | 审计点数 | 覆盖操作 |
 |---------|---------|---------|
 | `AgentManagementService` | 17 | 创建/更新/删除/发布/复制智能体等 |
 | `WorkflowManagementService` | 17 | 创建/更新/删除/发布工作流等 |
-| `PluginService` | 13 | 创建/删除/修改/导入/导出/发布插件和工具 |
+| `PluginService` | 13 | 创建/删除/修改/导入/导出/发布插件 |
+| `ToolManagementService` | 10 | 工具创建/更新/删除/发布等 |
+| `KnowledgeBaseServiceImpl` | 9 | 知识库创建/更新/删除等 |
 | `ComplexIntentManagementService` | 9 | 复杂意图的增删改查 |
 | `EnvironmentServiceManagerService` | 7 | 环境服务管理 |
 | `KnowledgeBaseDatasetServiceImpl` | 7 | 知识库数据集增删改 |
-| `McpServiceManager` | 6 | MCP 服务创建/部署/删除等 |
 | `ModelServiceMgmtService` | 6 | 模型服务管理 |
+| `McpServiceManager` | 6 | MCP 服务创建/部署/删除等 |
+| `ShareResourceManagerService` | 5 | 资源共享管理 |
 | `ProviderMgmtService` | 4 | 模型供应商管理 |
-| `ProviderAuthMgmtService` | 3 | 供应商认证管理 |
+| `ProviderAuthService` | 4 | 供应商认证管理 |
+| `MessageManagementService` | 4 | 消息模板/意图包/对象管理 |
 | `WorkspaceService` | 3 | 工作空间增删改 |
-| `MemoryRepoManagementService` | 3 | 记忆库管理 |
+| `WorkspaceMemberService` | 3 | 工作空间成员管理 |
+| `RouterStrategyMgmtService` | 3 | 路由策略管理 |
+| `ProviderAuthMgmtService` | 3 | 供应商认证信息管理 |
 | `MemoryServiceInstanceService` | 3 | 记忆服务实例管理 |
-| `RouterStrategyMgmtService` | 1 | 路由策略管理 |
+| `MemoryRepoManagementService` | 3 | 记忆库管理 |
+| `CustomObjectManagementService` | 3 | 自定义对象管理 |
+| `SkillManagementService` | 2 | 技能管理 |
+| `McpInnerService` | 1 | MCP 内部服务操作 |
+| `CommonManagementService` | 1 | 通用管理操作 |
+| `AppManagementService` | 1 | 应用管理 |
 | `AgentServiceProxyService` | 1 | 代理服务操作 |
 
 ---
