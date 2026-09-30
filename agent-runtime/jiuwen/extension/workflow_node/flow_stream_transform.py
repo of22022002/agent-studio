@@ -377,12 +377,13 @@ class FlowStreamTransform(WorkflowComponent):
 
         async for frame in out_stream:
             if prev is not None:
+                answer = json.dumps(prev, ensure_ascii=False) if isinstance(prev, (dict, list)) else prev
                 await session.write_stream(
                     OutputSchema(
                         type=STREAM_TYPE_PARTIAL_CONTENT,
                         index=idx,
                         payload=get_data_of_streaming_with_metadata(
-                            answer=prev, metadata=self.metadata
+                            answer=answer, metadata=self.metadata
                         ),
                     )
                 )
@@ -390,12 +391,13 @@ class FlowStreamTransform(WorkflowComponent):
             prev = frame
 
         if prev is not None:
+            answer = json.dumps(prev, ensure_ascii=False) if isinstance(prev, (dict, list)) else prev
             await session.write_stream(
                 OutputSchema(
                     type=STREAM_TYPE_MESSAGE_END,
                     index=idx,
                     payload=get_data_of_streaming_with_metadata(
-                        answer=prev, metadata=self.metadata
+                        answer=answer, metadata=self.metadata
                     ),
                 )
             )
@@ -467,22 +469,24 @@ class FlowStreamTransform(WorkflowComponent):
         prev = None
         async for frame in out_stream:
             if prev is not None:
+                answer = json.dumps(prev, ensure_ascii=False) if isinstance(prev, (dict, list)) else prev
                 yield OutputSchema(
                     type=STREAM_TYPE_PARTIAL_CONTENT,
                     index=idx,
                     payload=get_data_of_streaming_with_metadata(
-                        answer=prev, metadata=self.metadata
+                        answer=answer, metadata=self.metadata
                     ),
                 )
                 idx += 1
             prev = frame
 
         if prev is not None:
+            answer = json.dumps(prev, ensure_ascii=False) if isinstance(prev, (dict, list)) else prev
             yield OutputSchema(
                 type=STREAM_TYPE_MESSAGE_END,
                 index=idx,
                 payload=get_data_of_streaming_with_metadata(
-                    answer=prev, metadata=self.metadata
+                    answer=answer, metadata=self.metadata
                 ),
             )
 
