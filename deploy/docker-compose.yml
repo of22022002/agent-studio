@@ -222,6 +222,7 @@ services:
       studio_btn_show: ${STUDIO_BTN_SHOW:-true}
       system_crypt_name: ${SYSTEM_CRYPT_NAME:-}
       enable_tool_url_check: ${ENABLE_TOOL_URL_CHECK:-true}
+      # 审计日志开关，设为 true 开启，默认 false。详见 docs/zh/how-to/audit-log-guide.md
       studio_operationLog_switch: ${STUDIO_OPERATION_LOG_SWITCH:-false}
       # Redisson codec 反序列化允许的最大字符串长度(字符数)，覆盖 Jackson 2.18 默认 20MB 限制，用于反序列化调用链缓存等大字符串值。默认 100MB
       redis_max_string_length: ${REDIS_MAX_STRING_LENGTH:-100000000}

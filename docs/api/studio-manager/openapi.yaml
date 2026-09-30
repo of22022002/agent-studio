@@ -1604,8 +1604,8 @@ paths:
     put:
       tags:
       - work-space-member-api-controller
-      summary: ""
-      description: 转让空间所有权给指定用户。
+      summary: 转让空间所有权
+      description: 将团队空间所有权转让给指定用户。仅 OWNER 可操作。转让后原所有者降级为 ADMIN。next_owner_id 必须为已是空间成员的用户。
       operationId: transferWorkspaceOwnership
       parameters:
       - name: project_id
@@ -7317,8 +7317,8 @@ paths:
     get:
       tags:
       - work-space-member-api-controller
-      summary: ""
-      description: 查询团队空间成员列表
+      summary: 查询团队空间成员列表
+      description: 查询指定团队空间的成员列表，支持分页。
       operationId: queryWorkspaceMemberList
       parameters:
       - name: project_id
@@ -7384,8 +7384,9 @@ paths:
     post:
       tags:
       - work-space-member-api-controller
-      summary: ""
-      description: 批量添加团队空间成员。
+      summary: 批量添加团队空间成员
+      description: "批量添加团队空间成员。需要 OWNER 或 ADMIN 权限。member_id 需符合 ^[a-zA-Z0-9_-]+$\
+        \ 格式（1-64字符），role 不能为 OWNER。"
       operationId: batchAddWorkspaceMember
       parameters:
       - name: project_id
@@ -7417,8 +7418,8 @@ paths:
     delete:
       tags:
       - work-space-member-api-controller
-      summary: ""
-      description: 批量移除团队空间成员。
+      summary: 批量移除团队空间成员
+      description: 批量移除团队空间成员。需要 OWNER 或 ADMIN 权限。不能移除空间所有者（OWNER）。
       operationId: batchDeleteWorkspaceMember
       parameters:
       - name: project_id
@@ -7450,8 +7451,9 @@ paths:
     patch:
       tags:
       - work-space-member-api-controller
-      summary: ""
-      description: 修改团队空间成员角色。
+      summary: 修改团队空间成员角色
+      description: 修改团队空间成员角色。需要 OWNER 或 ADMIN 权限。可将成员角色修改为 ADMIN/DEVELOPER/OPERATOR，不能修改为
+        OWNER。
       operationId: batchUpdateWorkspaceMemberRole
       parameters:
       - name: workspace_id
@@ -16618,8 +16620,8 @@ paths:
     get:
       tags:
       - work-space-member-api-controller
-      summary: ""
-      description: 获取IAM用户列表。
+      summary: 查询可添加的 IAM 用户列表
+      description: 获取当前租户下的 IAM 用户列表，用于添加空间成员时选择用户。依赖 IAM 服务，Simple Auth 模式下返回空列表。
       operationId: queryIamUserList
       parameters:
       - name: project_id
@@ -16645,8 +16647,8 @@ paths:
     get:
       tags:
       - work-space-member-api-controller
-      summary: ""
-      description: 获取团队空间下的角色列表。
+      summary: 查询团队空间角色列表
+      description: 获取团队空间下的角色列表。角色包括 OWNER/ADMIN/DEVELOPER/OPERATOR。
       operationId: queryRoleList
       parameters:
       - name: project_id
@@ -20516,8 +20518,8 @@ paths:
     delete:
       tags:
       - work-space-member-api-controller
-      summary: ""
-      description: 当前用户退出指定空间
+      summary: 退出当前用户所在空间
+      description: 当前用户退出指定团队空间。空间所有者（OWNER）不能退出空间，需先转让所有权。
       operationId: exitWorkspace
       parameters:
       - name: project_id
@@ -21262,8 +21264,9 @@ components:
           maxLength: 2000
         input_schema:
           type: string
-          description: 输入Schema
-          example: {}
+          description: 请求输入参数Schema（JSON字符串），用于定义工具调用时的请求参数结构。
+          example: "{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"\
+            ,\"description\":\"城市名称\",\"location\":\"Body\"}}}"
           maxLength: 200000
       required:
       - method
@@ -22229,8 +22232,8 @@ components:
           example: example-id-123
         next_owner_id:
           type: string
-          description: 下一页
-          example: example-id-123
+          description: 新所有者用户ID（需为当前空间成员）
+          example: userB
       required:
       - next_owner_id
       - workspace_id
@@ -27201,8 +27204,10 @@ components:
           maxLength: 64
         input_schema:
           type: string
-          description: 输入Schema
-          example: {}
+          description: 输入参数Schema（JSON字符串）。入参每个属性必填description（非空）和location（Body/Headers/Query/Path之一）；不支持嵌套数组和additionalProperties；支持类型：string/number/integer/object/array/boolean/null；参数嵌套深度和数量受配置限制。
+          example: "{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"\
+            ,\"description\":\"城市名称\",\"location\":\"Body\"},\"days\":{\"type\":\"\
+            integer\",\"description\":\"天数\",\"location\":\"Query\"}}}"
           maxLength: 200000
         is_input_list:
           type: boolean
@@ -27210,8 +27215,9 @@ components:
           example: false
         output_schema:
           type: string
-          description: 输出Schema
-          example: {}
+          description: 输出参数Schema（JSON字符串）。出参属性无description和location必填要求；不支持嵌套数组和additionalProperties；支持类型：string/number/integer/object/array/boolean/null。
+          example: "{\"type\":\"object\",\"properties\":{\"result\":{\"type\":\"string\"\
+            }}}"
           maxLength: 200000
         is_output_list:
           type: boolean
