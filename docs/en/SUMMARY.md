@@ -10,6 +10,7 @@
   - [Asset Plaza Preset](how-to/asset-plaza-preset.md)
   - [Observability Deployment](how-to/configure-opentelemetry.md)
   - [Knowledge Base Integration Guide](how-to/knowledge-base-guide.md)
+  - [Audit Log Guide](how-to/audit-log-guide.md)
   - [Troubleshooting](how-to/troubleshooting.md)
 - [Reference](reference/)
   - [REST API Reference](reference/rest-api.md)

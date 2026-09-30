@@ -1207,12 +1207,13 @@ public class ToolManagementService implements IToolManagementService {
         try {
             if (!JsonSchemaUtils.isJsonSchemaValid(inputSchema, maxPropNum, maxPropDepth, true)) {
                 log.error("The format of tool input schema is invalid: {}", inputSchema);
-                throw new AgentStudioException(StudioError.TOOL_INPUT_SCHEMA_INVALID);
+                throw new AgentStudioException(StudioError.TOOL_INPUT_SCHEMA_INVALID,
+                        List.of("The input schema format is invalid. Please check the JSON structure."));
             }
         } catch (AgentStudioException exception) {
             log.error("The format of tool input schema is invalid: {}", inputSchema);
             throw new AgentStudioException(StudioError.TOOL_INPUT_SCHEMA_INVALID,
-                    i18nUtil.getMessage("openjiuwen.02401002") + " " + exception.getMessage());
+                    exception.getDetails());
         }
         try {
             // 非流式插件才校验output格式
@@ -1220,13 +1221,14 @@ public class ToolManagementService implements IToolManagementService {
                     && CommonConstant.Plugin.INTF_TYPE_STREAMING.equalsIgnoreCase(intfType))) {
                 if (!JsonSchemaUtils.isJsonSchemaValid(outputSchema, maxPropNum, maxPropDepth, false)) {
                     log.error("The format of tool output schema is invalid: {}", outputSchema);
-                    throw new AgentStudioException(StudioError.TOOL_OUTPUT_SCHEMA_INVALID);
+                    throw new AgentStudioException(StudioError.TOOL_OUTPUT_SCHEMA_INVALID,
+                            List.of("The output schema format is invalid. Please check the JSON structure."));
                 }
             }
         } catch (AgentStudioException exception) {
             log.error("The format of tool output schema is invalid: {}", outputSchema);
             throw new AgentStudioException(StudioError.TOOL_OUTPUT_SCHEMA_INVALID,
-                    i18nUtil.getMessage("openjiuwen.02401003") + " " + exception.getMessage());
+                    exception.getDetails());
         }
     }
 
