@@ -19,7 +19,7 @@
   "skill.import_zip_error_tip": "Failed to import file {{name}} due to a local network error. Try importing again, or check whether your local network and configuration are working properly.",
   "skill.import_obs_error_tip": "Failed to import the OBS resource due to a local network error. Try importing again, or check whether your local network and configuration are working properly.",
   "skill.import_download_zip": "Download Template",
-  "skill.import.docoument.link": "View the Skill package specification",
+  "skill.import.document.link": "View the Skill package specification",
   "skill.import_add_file": "Add File",
   "skill.import.reselect.file": "Reselect",
   "skill.import_obs_tip": "Upload the Skill ZIP file to Object Storage Service (OBS), obtain the file URL, and enter it here. The file size must be ≤ 10 MiB.",
